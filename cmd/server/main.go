@@ -22,12 +22,25 @@ func logKV(kv ...any) {
 }
 
 func main() {
-	cfg := config.FromEnv()
+	cfg, err := config.FromEnv()
+	if err != nil {
+		logKV("event", "fatal", "error", err.Error())
+		os.Exit(1)
+	}
+
+	// Validate configuration in dev mode
+	// In prod, validation can be relaxed since secrets come from secret manager
+	if cfg.Env == "dev" {
+		if err := cfg.Validate(); err != nil {
+			logKV("event", "fatal", "error", err.Error())
+			os.Exit(1)
+		}
+	}
 
 	router := httpx.NewRouter()
 
 	addr := ":" + cfg.Port
-	logKV("event", "start", "port", cfg.Port)
+	logKV("event", "start", "port", cfg.Port, "env", cfg.Env)
 	if err := http.ListenAndServe(addr, router); err != nil {
 		logKV("event", "fatal", "error", err.Error())
 		os.Exit(1)
