@@ -29,3 +29,7 @@ stop:
 
 .PHONY: restart
 restart: stop run
+
+.PHONY: docker
+docker:
+	docker build -t intercom-cookie-helper:dev .
