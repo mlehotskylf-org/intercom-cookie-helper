@@ -24,6 +24,8 @@ fmt-strict:
 .PHONY: stop
 stop:
 	@pkill -f "go run ./cmd/server" || echo "Server not running"
+	@pkill -f "server" || true
+	@sleep 1
 
 .PHONY: restart
 restart: stop run
