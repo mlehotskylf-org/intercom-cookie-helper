@@ -27,6 +27,9 @@ type Config struct {
 	// Allowed return hosts - list of hosts that can be redirect targets
 	AllowedReturnHosts []string
 
+	// Preprocessed allowed hosts for fast wildcard matching
+	AllowedReturnHostsPreprocessed []ProcessedHost
+
 	// Allowed query params to preserve (default: ["utm_campaign", "utm_source"])
 	AllowedQueryParams []string
 
@@ -60,6 +63,16 @@ type Config struct {
 	EnableHSTS bool
 }
 
+// ProcessedHost represents a processed host pattern for fast matching
+type ProcessedHost struct {
+	// Original pattern as provided by user (e.g., "*.example.com")
+	Original string
+	// Canonical pattern for fast matching (e.g., "example.com" for "*.example.com")
+	Canonical string
+	// IsWildcard indicates if this is a wildcard pattern
+	IsWildcard bool
+}
+
 // FromEnv reads configuration from environment variables
 func FromEnv() (Config, error) {
 	cfg := Config{}
@@ -67,13 +80,21 @@ func FromEnv() (Config, error) {
 	// Environment
 	cfg.Env = getEnv("ENV", "dev")
 
-	// Basic settings
-	cfg.AppHostname = getEnv("APP_HOSTNAME", "")
+	// Basic settings with normalization
+	appHostname := getEnv("APP_HOSTNAME", "")
+	if appHostname != "" {
+		normalized, err := normalizeHostname(appHostname)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid APP_HOSTNAME: %w", err)
+		}
+		cfg.AppHostname = normalized
+	}
 	cfg.Port = getEnv("PORT", "8080")
 	cfg.CookieDomain = getEnv("COOKIE_DOMAIN", "")
 
-	// Parse allowed hosts from CSV
-	cfg.AllowedReturnHosts = parseCSV("ALLOWED_RETURN_HOSTS")
+	// Parse allowed hosts from CSV with normalization
+	allowedHosts := parseCSV("ALLOWED_RETURN_HOSTS")
+	cfg.AllowedReturnHosts, cfg.AllowedReturnHostsPreprocessed = normalizeAllowedHosts(allowedHosts)
 
 	// Parse allowed query params with defaults
 	if params := parseCSV("ALLOWED_QUERY_PARAMS"); len(params) > 0 {
@@ -263,4 +284,52 @@ func decodeKey(key string) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("COOKIE_SIGNING_KEY must be valid hex or base64 encoding")
+}
+
+// normalizeHostname ensures hostname is host-only (no scheme/port)
+func normalizeHostname(hostname string) (string, error) {
+	// Check if it contains a scheme
+	if strings.Contains(hostname, "://") {
+		return "", fmt.Errorf("hostname must not contain scheme (found ://): %s", hostname)
+	}
+
+	// Check if it contains a port
+	if strings.Contains(hostname, ":") {
+		return "", fmt.Errorf("hostname must not contain port (found :): %s", hostname)
+	}
+
+	// Normalize to lowercase
+	return strings.ToLower(strings.TrimSpace(hostname)), nil
+}
+
+// normalizeAllowedHosts processes the allowed hosts list
+func normalizeAllowedHosts(hosts []string) ([]string, []ProcessedHost) {
+	normalized := make([]string, len(hosts))
+	processed := make([]ProcessedHost, len(hosts))
+
+	for i, host := range hosts {
+		// Normalize to lowercase and trim
+		normalizedHost := strings.ToLower(strings.TrimSpace(host))
+		normalized[i] = normalizedHost
+
+		// Process for fast matching
+		if strings.HasPrefix(normalizedHost, "*.") {
+			// Wildcard pattern - strip the "*." prefix for canonical form
+			canonical := normalizedHost[2:] // Remove "*."
+			processed[i] = ProcessedHost{
+				Original:   normalizedHost,
+				Canonical:  canonical,
+				IsWildcard: true,
+			}
+		} else {
+			// Exact host match
+			processed[i] = ProcessedHost{
+				Original:   normalizedHost,
+				Canonical:  normalizedHost,
+				IsWildcard: false,
+			}
+		}
+	}
+
+	return normalized, processed
 }

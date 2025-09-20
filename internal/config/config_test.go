@@ -321,3 +321,117 @@ func TestDecodeKey(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeHostname(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostname string
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "normalizes simple hostname",
+			hostname: "Example.COM",
+			want:     "example.com",
+			wantErr:  false,
+		},
+		{
+			name:     "trims whitespace",
+			hostname: "  localhost  ",
+			want:     "localhost",
+			wantErr:  false,
+		},
+		{
+			name:     "rejects hostname with scheme",
+			hostname: "https://example.com",
+			want:     "",
+			wantErr:  true,
+		},
+		{
+			name:     "rejects hostname with port",
+			hostname: "example.com:8080",
+			want:     "",
+			wantErr:  true,
+		},
+		{
+			name:     "handles subdomain",
+			hostname: "sub.EXAMPLE.com",
+			want:     "sub.example.com",
+			wantErr:  false,
+		},
+		{
+			name:     "handles empty hostname",
+			hostname: "",
+			want:     "",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeHostname(tt.hostname)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("normalizeHostname() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("normalizeHostname() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeAllowedHosts(t *testing.T) {
+	tests := []struct {
+		name           string
+		hosts          []string
+		wantNormalized []string
+		wantProcessed  []ProcessedHost
+	}{
+		{
+			name:           "handles empty slice",
+			hosts:          []string{},
+			wantNormalized: []string{},
+			wantProcessed:  []ProcessedHost{},
+		},
+		{
+			name:  "normalizes mixed case hosts",
+			hosts: []string{"Example.COM", "SUB.domain.org"},
+			wantNormalized: []string{"example.com", "sub.domain.org"},
+			wantProcessed: []ProcessedHost{
+				{Original: "example.com", Canonical: "example.com", IsWildcard: false},
+				{Original: "sub.domain.org", Canonical: "sub.domain.org", IsWildcard: false},
+			},
+		},
+		{
+			name:  "processes wildcard patterns",
+			hosts: []string{"*.EXAMPLE.COM", "specific.host.org"},
+			wantNormalized: []string{"*.example.com", "specific.host.org"},
+			wantProcessed: []ProcessedHost{
+				{Original: "*.example.com", Canonical: "example.com", IsWildcard: true},
+				{Original: "specific.host.org", Canonical: "specific.host.org", IsWildcard: false},
+			},
+		},
+		{
+			name:  "trims whitespace",
+			hosts: []string{"  localhost  ", " *.example.com "},
+			wantNormalized: []string{"localhost", "*.example.com"},
+			wantProcessed: []ProcessedHost{
+				{Original: "localhost", Canonical: "localhost", IsWildcard: false},
+				{Original: "*.example.com", Canonical: "example.com", IsWildcard: true},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotNormalized, gotProcessed := normalizeAllowedHosts(tt.hosts)
+			if !reflect.DeepEqual(gotNormalized, tt.wantNormalized) {
+				t.Errorf("normalizeAllowedHosts() normalized = %v, want %v", gotNormalized, tt.wantNormalized)
+			}
+			if !reflect.DeepEqual(gotProcessed, tt.wantProcessed) {
+				t.Errorf("normalizeAllowedHosts() processed = %v, want %v", gotProcessed, tt.wantProcessed)
+			}
+		})
+	}
+}

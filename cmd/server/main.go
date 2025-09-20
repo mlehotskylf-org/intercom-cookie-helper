@@ -11,6 +11,17 @@ import (
 	httpx "github.com/mlehotskylf-org/intercom-cookie-helper/internal/http"
 )
 
+// Log level constants
+const (
+	LogLevelDebug = 0
+	LogLevelInfo  = 1
+	LogLevelWarn  = 2
+	LogLevelError = 3
+)
+
+// Global log threshold
+var logThreshold = LogLevelInfo
+
 func logKV(kv ...any) {
 	timestamp := time.Now().Format(time.RFC3339)
 	fmt.Printf("%s", timestamp)
@@ -22,6 +33,29 @@ func logKV(kv ...any) {
 	fmt.Println()
 }
 
+// logLevelToInt maps log level strings to integers
+func logLevelToInt(level string) int {
+	switch level {
+	case "debug":
+		return LogLevelDebug
+	case "info":
+		return LogLevelInfo
+	case "warn":
+		return LogLevelWarn
+	case "error":
+		return LogLevelError
+	default:
+		return LogLevelInfo // default to info
+	}
+}
+
+// logAt logs at the specified level if it meets the threshold
+func logAt(level string, kv ...any) {
+	if logLevelToInt(level) >= logThreshold {
+		logKV(kv...)
+	}
+}
+
 func main() {
 	checkConfig := flag.Bool("check-config", false, "Check configuration and exit")
 	flag.Parse()
@@ -31,6 +65,9 @@ func main() {
 		logKV("event", "config_error", "error", err.Error())
 		os.Exit(2)
 	}
+
+	// Set log threshold based on configuration
+	logThreshold = logLevelToInt(cfg.LogLevel)
 
 	// Validate configuration in dev mode
 	// In prod, validation can be relaxed since secrets come from secret manager
@@ -50,12 +87,14 @@ func main() {
 	router := httpx.NewRouter()
 
 	addr := ":" + cfg.Port
-	logKV("event", "start",
+	logAt("info", "event", "start",
 		"env", cfg.Env,
 		"port", cfg.Port,
 		"hostname", cfg.AppHostname,
 		"cookie_domain", cfg.CookieDomain,
 		"log_level", cfg.LogLevel)
+
+	logAt("debug", "event", "router_initialized", "middleware", "RequestID,RealIP,Logger,Recoverer")
 
 	if err := http.ListenAndServe(addr, router); err != nil {
 		logKV("event", "fatal", "error", err.Error())
