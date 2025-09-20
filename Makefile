@@ -16,6 +16,11 @@ test:
 fmt:
 	gofmt -s -w .
 
+.PHONY: fmt-strict
+fmt-strict:
+	gofumpt -l -w .
+	gofmt -s -w .
+
 .PHONY: stop
 stop:
 	@pkill -f "go run ./cmd/server" || echo "Server not running"
