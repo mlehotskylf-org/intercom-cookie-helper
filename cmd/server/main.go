@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -22,25 +23,40 @@ func logKV(kv ...any) {
 }
 
 func main() {
+	checkConfig := flag.Bool("check-config", false, "Check configuration and exit")
+	flag.Parse()
+
 	cfg, err := config.FromEnv()
 	if err != nil {
-		logKV("event", "fatal", "error", err.Error())
-		os.Exit(1)
+		logKV("event", "config_error", "error", err.Error())
+		os.Exit(2)
 	}
 
 	// Validate configuration in dev mode
 	// In prod, validation can be relaxed since secrets come from secret manager
 	if cfg.Env == "dev" {
 		if err := cfg.Validate(); err != nil {
-			logKV("event", "fatal", "error", err.Error())
-			os.Exit(1)
+			logKV("event", "validation_error", "error", err.Error())
+			os.Exit(2)
 		}
+	}
+
+	// If check-config flag is set, just validate and exit
+	if *checkConfig {
+		fmt.Println("CONFIG OK")
+		os.Exit(0)
 	}
 
 	router := httpx.NewRouter()
 
 	addr := ":" + cfg.Port
-	logKV("event", "start", "port", cfg.Port, "env", cfg.Env)
+	logKV("event", "start",
+		"env", cfg.Env,
+		"port", cfg.Port,
+		"hostname", cfg.AppHostname,
+		"cookie_domain", cfg.CookieDomain,
+		"log_level", cfg.LogLevel)
+
 	if err := http.ListenAndServe(addr, router); err != nil {
 		logKV("event", "fatal", "error", err.Error())
 		os.Exit(1)

@@ -1,7 +1,7 @@
 dist/
 bin/
 .DS_Store
-.env*
+.env
 coverage.out
 .idea/
 .vscode/

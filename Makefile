@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
-.PHONY: run
-run:
+.PHONY: start
+start:
 	go run ./cmd/server
 
 .PHONY: build
@@ -28,8 +28,16 @@ stop:
 	@sleep 1
 
 .PHONY: restart
-restart: stop run
+restart: stop start
 
 .PHONY: docker
 docker:
 	docker build -t intercom-cookie-helper:dev .
+
+.PHONY: env-print
+env-print:
+	go run ./internal/config/cmd/envprint
+
+.PHONY: env-check
+env-check:
+	go run ./cmd/server -check-config
