@@ -216,3 +216,36 @@ func FuzzSanitizeReturnURL(f *testing.F) {
 		// If there's an error, that's fine - the function handled invalid input correctly
 	})
 }
+
+func BenchmarkSanitizeReturnURL(b *testing.B) {
+	// Create a sanitizer with test hosts
+	allowlist, _ := NewHostAllowlist([]string{
+		"example.com",
+		"*.example.com",
+		"test.org",
+	})
+	sanitizer := NewSanitizer(allowlist, []string{"utm_source", "utm_campaign"})
+
+	testCases := []struct {
+		name string
+		url  string
+	}{
+		{
+			name: "GoodURL",
+			url:  "https://example.com/path?utm_source=test&utm_campaign=spring&other=filtered",
+		},
+		{
+			name: "BadURL",
+			url:  "javascript:alert('xss')",
+		},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_, _ = sanitizer.SanitizeReturnURL(tc.url)
+			}
+		})
+	}
+}

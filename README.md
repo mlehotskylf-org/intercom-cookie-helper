@@ -28,12 +28,19 @@ make fmt-strict  # Format code with gofumpt and gofmt
 make stop        # Stop the running server
 make restart     # Stop and restart the server
 make env-print   # Print current configuration (with secrets redacted)
+make sanitize URL="https://example.com/path?param=value"  # Test URL sanitization
 ```
 
 ## API Endpoints
 
 - `GET /healthz` - Health check endpoint
   - Returns: `200 OK` with `{"status":"ok"}`
+
+- `GET /login?return_to=<url>` - Login endpoint with URL sanitization
+  - **Referrer Guard**: Must have valid HTTPS referrer from allowed hosts
+  - **URL Sanitization**: Filters query parameters and ensures HTTPS
+  - Returns: `200 OK` with `{"sanitized": "https://..."}`
+  - Errors: `400 Bad Request` for invalid URLs or referrers
 
 ## Configuration
 
@@ -188,3 +195,57 @@ make env-print
 ```
 
 Note: All sensitive fields are automatically redacted as `"***"` in configuration output.
+
+## URL Sanitization
+
+### Testing URL Sanitization
+
+The server includes a built-in URL sanitization tool for testing:
+
+```bash
+# Test URL sanitization with the sanitize command
+make sanitize URL="https://riscv.org/members/resources/?utm_source=x&x=y#frag"
+# Output: https://riscv.org/members/resources/?utm_source=x
+
+# Test with a malicious URL
+make sanitize URL="javascript:alert('xss')"
+# Output: Error: scheme not allowed: javascript
+
+# Test with an unallowed host
+make sanitize URL="https://malicious.com/path"
+# Output: Error: host not allowed: malicious.com
+```
+
+### API Testing with curl
+
+Test the `/login` endpoint with proper referrer validation:
+
+```bash
+# Valid request with allowed referrer
+curl -H "Referer: https://localhost/" \
+     "http://localhost:8080/login?return_to=https://riscv.org/path?utm_source=test&other=filtered"
+# Response: {"sanitized": "https://riscv.org/path?utm_source=test"}
+
+# Request without referrer (allowed - some clients strip referrers)
+curl "http://localhost:8080/login?return_to=https://riscv.org/path"
+# Response: {"sanitized": "https://riscv.org/path"}
+
+# Request with invalid referrer (blocked)
+curl -H "Referer: https://malicious.com/" \
+     "http://localhost:8080/login?return_to=https://riscv.org/path"
+# Response: {"error": "invalid_referrer"}
+
+# Request with malicious URL (blocked)
+curl -H "Referer: https://localhost/" \
+     "http://localhost:8080/login?return_to=javascript:alert('xss')"
+# Response: {"error": "invalid_return_url", "message": "scheme not allowed: javascript"}
+```
+
+### Security Features
+
+- **Open Redirect Prevention**: Only allows URLs to configured trusted hosts
+- **HTTPS Enforcement**: Automatically upgrades HTTP URLs to HTTPS
+- **Query Parameter Filtering**: Only preserves allowed parameters (e.g., UTM tracking)
+- **Fragment Stripping**: Removes URL fragments for security
+- **Referrer Validation**: Ensures requests come from trusted sources
+- **Input Sanitization**: Validates and normalizes all input URLs

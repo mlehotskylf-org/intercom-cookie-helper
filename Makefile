@@ -59,3 +59,11 @@ env-print:
 .PHONY: env-check
 env-check:
 	go run ./cmd/server -check-config
+
+.PHONY: sanitize
+sanitize:
+	@if [ -z "$(URL)" ]; then \
+		echo "Usage: make sanitize URL=\"https://example.com/path\""; \
+		exit 1; \
+	fi
+	@if [ -f .env ]; then set -a && source .env && set +a; fi && go run ./cmd/server -sanitize "$(URL)"

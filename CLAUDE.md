@@ -16,14 +16,16 @@ This is an Intercom cookie helper service that provides authentication flow betw
 ## Key Commands
 ```bash
 make start       # Start the server (requires env vars)
+make start-bg    # Start the server in background
 make stop        # Stop the running server
-make restart     # Restart the server
+make restart     # Restart the server (improved with background start)
 make build       # Build binary to bin/server
 make test        # Run all tests
 make fmt         # Format with gofmt
 make fmt-strict  # Format with gofumpt then gofmt
 make docker      # Build Docker image (intercom-cookie-helper:dev)
 make env-print   # Print current configuration (secrets redacted)
+make sanitize URL="https://example.com/path"  # Test URL sanitization
 ```
 
 ## Required Environment Variables
