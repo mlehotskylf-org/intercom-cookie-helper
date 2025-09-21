@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -58,6 +59,7 @@ func logAt(level string, kv ...any) {
 
 func main() {
 	checkConfig := flag.Bool("check-config", false, "Check configuration and exit")
+	envPrint := flag.Bool("env-print", false, "Print redacted configuration as JSON and exit")
 	flag.Parse()
 
 	cfg, err := config.FromEnv()
@@ -68,6 +70,18 @@ func main() {
 
 	// Set log threshold based on configuration
 	logThreshold = logLevelToInt(cfg.LogLevel)
+
+	// If env-print flag is set, output redacted config as JSON and exit
+	if *envPrint {
+		redacted := cfg.Redacted()
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(redacted); err != nil {
+			logKV("event", "json_encode_error", "error", err.Error())
+			os.Exit(2)
+		}
+		os.Exit(0)
+	}
 
 	// Validate configuration in dev mode
 	// In prod, validation can be relaxed since secrets come from secret manager
@@ -87,12 +101,14 @@ func main() {
 	router := httpx.NewRouter(cfg)
 
 	addr := ":" + cfg.Port
-	logAt("info", "event", "start",
-		"env", cfg.Env,
-		"port", cfg.Port,
-		"hostname", cfg.AppHostname,
-		"cookie_domain", cfg.CookieDomain,
-		"log_level", cfg.LogLevel)
+
+	// Log startup configuration with redacted secrets
+	redacted := cfg.Redacted()
+	logKvPairs := []any{"event", "start"}
+	for k, v := range redacted {
+		logKvPairs = append(logKvPairs, k, v)
+	}
+	logAt("info", logKvPairs...)
 
 	logAt("debug", "event", "router_initialized", "middleware", "RequestID,RealIP,Logger,Recoverer")
 

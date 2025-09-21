@@ -147,27 +147,47 @@ func FromEnv() (Config, error) {
 func (c *Config) Validate() error {
 	// Check required fields
 	if c.AppHostname == "" {
-		return fmt.Errorf("APP_HOSTNAME is required")
+		return fmt.Errorf("APP_HOSTNAME is required (set to your domain, e.g., intercom-auth.example.com)")
 	}
 
+	// Validate PORT format and range
+	if c.Port == "" {
+		return fmt.Errorf("PORT is required (set to a port number 1-65535, e.g., 8080)")
+	}
+	if port, err := strconv.Atoi(c.Port); err != nil {
+		return fmt.Errorf("PORT must be a valid number 1-65535 (got %q)", c.Port)
+	} else if port < 1 || port > 65535 {
+		return fmt.Errorf("PORT must be 1-65535 (got %q)", c.Port)
+	}
+
+	// Validate COOKIE_DOMAIN format
 	if c.CookieDomain == "" {
-		return fmt.Errorf("COOKIE_DOMAIN is required")
+		return fmt.Errorf("COOKIE_DOMAIN is required (set to your domain with leading dot, e.g., .example.com)")
+	}
+	if !strings.HasPrefix(c.CookieDomain, ".") {
+		return fmt.Errorf("COOKIE_DOMAIN must start with '.' for subdomain sharing (got %q, use %q)", c.CookieDomain, "."+c.CookieDomain)
+	}
+	if !strings.Contains(c.CookieDomain[1:], ".") {
+		return fmt.Errorf("COOKIE_DOMAIN must contain a dot after the leading dot (got %q, expected format like '.example.com')", c.CookieDomain)
 	}
 
 	if c.IntercomAppID == "" {
-		return fmt.Errorf("INTERCOM_APP_ID is required")
+		return fmt.Errorf("INTERCOM_APP_ID is required (get from your Intercom app settings)")
 	}
 
 	if c.Auth0Domain == "" {
-		return fmt.Errorf("AUTH0_DOMAIN is required")
+		return fmt.Errorf("AUTH0_DOMAIN is required (set to your Auth0 tenant domain, e.g., your-tenant.auth0.com)")
 	}
 
 	if c.Auth0ClientID == "" {
-		return fmt.Errorf("AUTH0_CLIENT_ID is required")
+		return fmt.Errorf("AUTH0_CLIENT_ID is required (get from your Auth0 application settings)")
 	}
 
 	if len(c.CookieSigningKey) == 0 {
-		return fmt.Errorf("COOKIE_SIGNING_KEY is required")
+		return fmt.Errorf("COOKIE_SIGNING_KEY is required (generate a 32+ byte hex string for cookie security)")
+	}
+	if len(c.CookieSigningKey) < 32 {
+		return fmt.Errorf("COOKIE_SIGNING_KEY must be at least 32 bytes for security (got %d bytes, need 32+)", len(c.CookieSigningKey))
 	}
 
 	// Validate environment value
@@ -175,7 +195,7 @@ func (c *Config) Validate() error {
 	case "dev", "staging", "prod":
 		// valid
 	default:
-		return fmt.Errorf("ENV must be dev, staging, or prod")
+		return fmt.Errorf("ENV must be 'dev', 'staging', or 'prod' (got %q)", c.Env)
 	}
 
 	// Validate log level
@@ -183,24 +203,24 @@ func (c *Config) Validate() error {
 	case "debug", "info", "warn", "error":
 		// valid
 	default:
-		return fmt.Errorf("LOG_LEVEL must be debug, info, warn, or error")
+		return fmt.Errorf("LOG_LEVEL must be 'debug', 'info', 'warn', or 'error' (got %q)", c.LogLevel)
 	}
 
 	// Production-only constraints
 	if c.Env == "prod" {
 		if c.IntercomJWTSecret != "" {
-			return fmt.Errorf("INTERCOM_JWT_SECRET should not be set in prod (use secret manager)")
+			return fmt.Errorf("in prod, INTERCOM_JWT_SECRET must be unset (use secret manager instead)")
 		}
 		if c.Auth0ClientSecret != "" {
-			return fmt.Errorf("AUTH0_CLIENT_SECRET should not be set in prod (use secret manager)")
+			return fmt.Errorf("in prod, AUTH0_CLIENT_SECRET must be unset (use secret manager instead)")
 		}
 	} else {
 		// In dev/staging, these are required
 		if c.IntercomJWTSecret == "" {
-			return fmt.Errorf("INTERCOM_JWT_SECRET is required in %s", c.Env)
+			return fmt.Errorf("INTERCOM_JWT_SECRET is required in %s environment (set a test secret or get from Intercom)", c.Env)
 		}
 		if c.Auth0ClientSecret == "" {
-			return fmt.Errorf("AUTH0_CLIENT_SECRET is required in %s", c.Env)
+			return fmt.Errorf("AUTH0_CLIENT_SECRET is required in %s environment (get from Auth0 application settings)", c.Env)
 		}
 	}
 

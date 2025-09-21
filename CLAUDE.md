@@ -23,6 +23,7 @@ make test        # Run all tests
 make fmt         # Format with gofmt
 make fmt-strict  # Format with gofumpt then gofmt
 make docker      # Build Docker image (intercom-cookie-helper:dev)
+make env-print   # Print current configuration (secrets redacted)
 ```
 
 ## Required Environment Variables
@@ -52,6 +53,8 @@ Optional:
 - The config validation runs in dev mode but is relaxed in prod to allow secret manager integration
 - CSV values are trimmed, lowercased, and deduplicated automatically
 - Cookie signing key accepts hex or base64 encoding
+- **Automatic normalization**: Hostnames lowercased, wildcard patterns preprocessed for fast matching
+- **Secret redaction**: Configuration output automatically masks sensitive values as "***"
 
 ## Testing
 - Unit tests exist for config helpers and health endpoint
@@ -74,9 +77,38 @@ Optional:
 - `GET /healthz` - Health check, returns `{"status":"ok"}`
 
 ## Logging
-Custom key-value logging with RFC3339 timestamps. Example:
+Custom key-value logging with RFC3339 timestamps and log level filtering. Example:
 ```
-2025-09-20T12:00:00Z event:start env:dev port:8080 hostname:localhost
+2025-09-20T12:00:00Z event:start env:dev port:8080 hostname:localhost cookie_domain:.localhost
+```
+- **Log levels**: debug, info, warn, error with threshold-based filtering
+- **Startup logs**: Configuration displayed with automatic secret redaction
+- **Structured format**: All logs use consistent key:value format for easy parsing
+
+## Configuration Management
+
+### Debug Commands
+```bash
+# Validate configuration and exit
+./bin/server --check-config
+
+# Print current configuration with secrets redacted
+make env-print
+./bin/server --env-print
+```
+
+### Key Features
+- **Actionable validation errors**: Error messages include specific examples and guidance
+- **Hostname normalization**: APP_HOSTNAME validates as host-only (no scheme/port)
+- **Wildcard preprocessing**: ALLOWED_RETURN_HOSTS supports `*.example.com` patterns
+- **Safe configuration output**: Secrets automatically redacted in logs and debug output
+- **Structured logs**: All configuration logged at startup with redacted secrets
+
+### Error Examples
+```
+APP_HOSTNAME is required (set to your domain, e.g., intercom-auth.example.com)
+COOKIE_DOMAIN must start with '.' for subdomain sharing (got "example.com", use ".example.com")
+PORT must be 1-65535 (got "99999")
 ```
 
 ## Exit Codes

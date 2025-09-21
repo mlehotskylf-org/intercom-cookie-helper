@@ -20,6 +20,7 @@ make fmt         # Format code with gofmt
 make fmt-strict  # Format code with gofumpt and gofmt
 make stop        # Stop the running server
 make restart     # Stop and restart the server
+make env-print   # Print current configuration (with secrets redacted)
 ```
 
 ## API Endpoints
@@ -108,6 +109,7 @@ cp .env.example .env
 - **`LOG_LEVEL`** - Application log level
   - Options: `debug`, `info`, `warn`, `error`
   - Default: `info`
+  - Controls which log messages are displayed at startup and runtime
 
 ### Development vs Production
 
@@ -137,3 +139,45 @@ AUTH0_CLIENT_SECRET=dev-client-secret
 COOKIE_SIGNING_KEY=devsigningkey0123456789abcdefdevsigningkey0123456789abcdefabcd
 LOG_LEVEL=debug
 ```
+
+## Configuration Management
+
+### Validation and Debugging
+
+The server includes comprehensive configuration validation with actionable error messages:
+
+```bash
+# Check configuration validity
+./bin/server --check-config
+
+# Print current configuration (secrets redacted)
+make env-print
+# or
+./bin/server --env-print
+```
+
+### Configuration Features
+
+- **Automatic normalization**: Hostnames are lowercased, wildcard patterns preprocessed
+- **Security validation**: Prevents common misconfigurations like missing leading dots in cookie domains
+- **Actionable errors**: Error messages include specific examples and guidance
+- **Secret redaction**: Configuration output automatically hides sensitive values
+- **Environment-aware**: Different validation rules for dev vs production
+
+### Example Configuration Output
+
+```json
+{
+  "env": "dev",
+  "app_hostname": "localhost",
+  "port": "8080",
+  "cookie_domain": ".example.com",
+  "allowed_return_hosts": ["localhost", "*.example.com"],
+  "intercom_jwt_secret": "***",
+  "auth0_client_secret": "***",
+  "cookie_signing_key": "*** (32 bytes)",
+  "log_level": "info"
+}
+```
+
+Note: All sensitive fields are automatically redacted as `"***"` in configuration output.

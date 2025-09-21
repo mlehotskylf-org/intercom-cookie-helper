@@ -435,3 +435,93 @@ func TestNormalizeAllowedHosts(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateErrorMessages(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Config
+		expectedErr string
+	}{
+		{
+			name: "invalid PORT number",
+			config: Config{
+				AppHostname: "example.com",
+				Port:        "99999",
+			},
+			expectedErr: `PORT must be 1-65535 (got "99999")`,
+		},
+		{
+			name: "invalid PORT non-numeric",
+			config: Config{
+				AppHostname: "example.com",
+				Port:        "abc",
+			},
+			expectedErr: `PORT must be a valid number 1-65535 (got "abc")`,
+		},
+		{
+			name: "COOKIE_DOMAIN without leading dot",
+			config: Config{
+				AppHostname:  "example.com",
+				Port:         "8080",
+				CookieDomain: "example.com",
+			},
+			expectedErr: `COOKIE_DOMAIN must start with '.' for subdomain sharing (got "example.com", use ".example.com")`,
+		},
+		{
+			name: "COOKIE_DOMAIN without second dot",
+			config: Config{
+				AppHostname:  "example.com",
+				Port:         "8080",
+				CookieDomain: ".com",
+			},
+			expectedErr: `COOKIE_DOMAIN must contain a dot after the leading dot (got ".com", expected format like '.example.com')`,
+		},
+		{
+			name: "prod environment with INTERCOM_JWT_SECRET set",
+			config: Config{
+				Env:                "prod",
+				AppHostname:        "example.com",
+				Port:               "8080",
+				CookieDomain:       ".example.com",
+				IntercomAppID:      "ic_123",
+				Auth0Domain:        "tenant.auth0.com",
+				Auth0ClientID:      "client123",
+				CookieSigningKey:   make([]byte, 32),
+				IntercomJWTSecret:  "should-not-be-set",
+				RedirectTTL:        30 * time.Minute,
+				SessionTTL:         24 * time.Hour,
+				LogLevel:           "info",
+			},
+			expectedErr: "in prod, INTERCOM_JWT_SECRET must be unset (use secret manager instead)",
+		},
+		{
+			name: "invalid ENV value",
+			config: Config{
+				AppHostname:      "example.com",
+				Port:             "8080",
+				CookieDomain:     ".example.com",
+				IntercomAppID:    "ic_123",
+				Auth0Domain:      "tenant.auth0.com",
+				Auth0ClientID:    "client123",
+				CookieSigningKey: make([]byte, 32),
+				Env:              "invalid",
+				RedirectTTL:      30 * time.Minute,
+				SessionTTL:       24 * time.Hour,
+				LogLevel:         "info",
+			},
+			expectedErr: `ENV must be 'dev', 'staging', or 'prod' (got "invalid")`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if err == nil {
+				t.Fatalf("expected error but got none")
+			}
+			if err.Error() != tt.expectedErr {
+				t.Errorf("expected error %q, got %q", tt.expectedErr, err.Error())
+			}
+		})
+	}
+}
