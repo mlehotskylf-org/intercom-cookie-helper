@@ -68,8 +68,8 @@ Optional:
 - Run: `docker run -p 8081:8080 -e APP_HOSTNAME=... intercom-cookie-helper:dev`
 
 ## Development Workflow
-1. Set required environment variables (consider using `.env` file with direnv)
-2. `make start` to run the server
+1. Copy and configure environment variables: `cp .env.example .env`
+2. Load environment and start server: `source .env && make start`
 3. `make test` before committing
 4. `make fmt-strict` to format code consistently
 

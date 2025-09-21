@@ -4,9 +4,16 @@ A simple Go HTTP server with health check endpoint.
 
 ## Quick Start
 
-```bash
-make start
-```
+1. Copy and configure environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your values
+   ```
+
+2. Start the server:
+   ```bash
+   source .env && make start
+   ```
 
 The server will start on port 8080 (or PORT environment variable if set).
 
