@@ -2,7 +2,11 @@ SHELL := /bin/bash
 
 .PHONY: start
 start:
-	go run ./cmd/server
+	@if [ -f .env ]; then set -a && source .env && set +a; fi && go run ./cmd/server
+
+.PHONY: start-bg
+start-bg:
+	@if [ -f .env ]; then set -a && source .env && set +a; fi && nohup go run ./cmd/server > /dev/null 2>&1 &
 
 .PHONY: build
 build:
@@ -23,12 +27,26 @@ fmt-strict:
 
 .PHONY: stop
 stop:
-	@pkill -f "go run ./cmd/server" || echo "Server not running"
-	@pkill -f "server" || true
+	@echo "Stopping server processes..."
+	@pkill -f "go run ./cmd/server" 2>/dev/null || echo "No 'go run ./cmd/server' processes found"
+	@if [ -n "$$(lsof -ti:8080 2>/dev/null)" ]; then \
+		echo "Killing process on port 8080: $$(lsof -ti:8080)"; \
+		kill $$(lsof -ti:8080) 2>/dev/null || true; \
+	else \
+		echo "No process found on port 8080"; \
+	fi
 	@sleep 1
 
 .PHONY: restart
-restart: stop start
+restart: stop start-bg
+	@echo "Server restarted in background"
+	@sleep 2
+	@echo "Checking if server started..."
+	@if [ -n "$$(lsof -ti:8080 2>/dev/null)" ]; then \
+		echo "✓ Server is running on port 8080 (PID: $$(lsof -ti:8080))"; \
+	else \
+		echo "✗ Server failed to start"; \
+	fi
 
 .PHONY: docker
 docker:

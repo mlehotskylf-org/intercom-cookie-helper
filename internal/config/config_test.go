@@ -525,3 +525,85 @@ func TestValidateErrorMessages(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_BuildSanitizer(t *testing.T) {
+	tests := []struct {
+		name               string
+		config             Config
+		wantErr            bool
+		testURL            string
+		expectedSanitized  string
+	}{
+		{
+			name: "valid config with custom allowed hosts and query params",
+			config: Config{
+				AllowedReturnHosts: []string{"example.com", "*.allowed.com"},
+				AllowedQueryParams: []string{"utm_campaign", "utm_source", "ref"},
+			},
+			testURL:           "https://example.com/path?utm_campaign=test&other=filtered&ref=homepage",
+			expectedSanitized: "https://example.com/path?ref=homepage&utm_campaign=test",
+		},
+		{
+			name: "config with default query params",
+			config: Config{
+				AllowedReturnHosts: []string{"example.com"},
+				AllowedQueryParams: nil, // Should default to utm_campaign, utm_source
+			},
+			testURL:           "https://example.com/path?utm_campaign=test&utm_source=email&other=filtered",
+			expectedSanitized: "https://example.com/path?utm_campaign=test&utm_source=email",
+		},
+		{
+			name: "config with empty query params list",
+			config: Config{
+				AllowedReturnHosts: []string{"example.com"},
+				AllowedQueryParams: []string{}, // Should default to utm_campaign, utm_source
+			},
+			testURL:           "https://example.com/path?utm_campaign=test&utm_source=email&other=filtered",
+			expectedSanitized: "https://example.com/path?utm_campaign=test&utm_source=email",
+		},
+		{
+			name: "invalid allowed hosts",
+			config: Config{
+				AllowedReturnHosts: []string{"https://example.com"}, // Invalid - contains scheme
+				AllowedQueryParams: []string{"utm_campaign"},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sanitizer, err := tt.config.BuildSanitizer()
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("BuildSanitizer() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("BuildSanitizer() unexpected error = %v", err)
+				return
+			}
+
+			if sanitizer == nil {
+				t.Errorf("BuildSanitizer() returned nil sanitizer")
+				return
+			}
+
+			// Test the sanitizer works correctly
+			if tt.testURL != "" {
+				result, err := sanitizer.SanitizeReturnURL(tt.testURL)
+				if err != nil {
+					t.Errorf("SanitizeReturnURL() unexpected error = %v", err)
+					return
+				}
+
+				if result != tt.expectedSanitized {
+					t.Errorf("SanitizeReturnURL() = %q, want %q", result, tt.expectedSanitized)
+				}
+			}
+		})
+	}
+}

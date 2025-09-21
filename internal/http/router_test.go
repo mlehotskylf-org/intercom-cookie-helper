@@ -144,3 +144,129 @@ func TestConfigInContext(t *testing.T) {
 		t.Errorf("expected status 200, got %d", rec.Code)
 	}
 }
+
+func TestLoginEndpoint(t *testing.T) {
+	// Create test config with allowed hosts
+	cfg := config.Config{
+		Env:                "test",
+		AppHostname:        "localhost",
+		Port:               "8080",
+		EnableHSTS:         false,
+		RedirectTTL:        30 * time.Minute,
+		SessionTTL:         24 * time.Hour,
+		LogLevel:           "info",
+		AllowedReturnHosts: []string{"localhost", "example.com", "*.example.com"},
+		AllowedQueryParams: []string{"utm_source", "utm_campaign"},
+	}
+	router := NewRouter(cfg)
+
+	tests := []struct {
+		name           string
+		url            string
+		referer        string
+		expectedStatus int
+		expectedBody   map[string]string
+	}{
+		{
+			name:           "valid return URL with allowed referer",
+			url:            "/login?return_to=https://example.com/path?utm_source=test",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusOK,
+			expectedBody:   map[string]string{"sanitized": "https://example.com/path?utm_source=test"},
+		},
+		{
+			name:           "valid return URL with empty referer",
+			url:            "/login?return_to=https://example.com/path",
+			referer:        "",
+			expectedStatus: http.StatusOK,
+			expectedBody:   map[string]string{"sanitized": "https://example.com/path"},
+		},
+		{
+			name:           "valid return URL with subdomain",
+			url:            "/login?return_to=https://sub.example.com/page",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusOK,
+			expectedBody:   map[string]string{"sanitized": "https://sub.example.com/page"},
+		},
+		{
+			name:           "missing return_to parameter",
+			url:            "/login",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"error": "missing_return_to"},
+		},
+		{
+			name:           "disallowed host in return_to",
+			url:            "/login?return_to=https://malicious.com/attack",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"error": "invalid_return_url"},
+		},
+		{
+			name:           "non-HTTPS return URL",
+			url:            "/login?return_to=http://example.com/path",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"error": "invalid_return_url"},
+		},
+		{
+			name:           "disallowed referer",
+			url:            "/login?return_to=https://example.com/path",
+			referer:        "https://malicious.com/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"error": "invalid_referrer"},
+		},
+		{
+			name:           "non-HTTPS referer",
+			url:            "/login?return_to=https://example.com/path",
+			referer:        "http://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"error": "invalid_referrer"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", tt.url, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.referer != "" {
+				req.Header.Set("Referer", tt.referer)
+			}
+
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+
+			if rec.Header().Get("Content-Type") != "application/json" {
+				t.Errorf("expected Content-Type 'application/json', got '%s'", rec.Header().Get("Content-Type"))
+			}
+
+			var response map[string]string
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatalf("failed to unmarshal response: %v", err)
+			}
+
+			// Check specific fields based on expected response
+			for key, expectedValue := range tt.expectedBody {
+				actualValue, exists := response[key]
+				if !exists {
+					t.Errorf("expected key '%s' not found in response", key)
+					continue
+				}
+				if key == "message" {
+					// For message field, just verify it exists (don't check exact value)
+					continue
+				}
+				if actualValue != expectedValue {
+					t.Errorf("for key '%s': expected '%s', got '%s'", key, expectedValue, actualValue)
+				}
+			}
+		})
+	}
+}

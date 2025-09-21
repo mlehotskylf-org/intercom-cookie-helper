@@ -5,5 +5,6 @@ bin/
 coverage.out
 .idea/
 .vscode/
+internal/security/testdata/fuzz/
 
 

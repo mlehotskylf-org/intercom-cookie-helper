@@ -60,6 +60,7 @@ func logAt(level string, kv ...any) {
 func main() {
 	checkConfig := flag.Bool("check-config", false, "Check configuration and exit")
 	envPrint := flag.Bool("env-print", false, "Print redacted configuration as JSON and exit")
+	sanitizeURL := flag.String("sanitize", "", "Sanitize a URL using the configured sanitizer and exit")
 	flag.Parse()
 
 	cfg, err := config.FromEnv()
@@ -80,6 +81,24 @@ func main() {
 			logKV("event", "json_encode_error", "error", err.Error())
 			os.Exit(2)
 		}
+		os.Exit(0)
+	}
+
+	// If sanitize flag is set, sanitize the URL and exit
+	if *sanitizeURL != "" {
+		sanitizer, err := cfg.BuildSanitizer()
+		if err != nil {
+			logKV("event", "sanitizer_build_error", "error", err.Error())
+			os.Exit(2)
+		}
+
+		result, err := sanitizer.SanitizeReturnURL(*sanitizeURL)
+		if err != nil {
+			logKV("event", "sanitization_error", "error", err.Error())
+			os.Exit(1)
+		}
+
+		fmt.Println(result)
 		os.Exit(0)
 	}
 

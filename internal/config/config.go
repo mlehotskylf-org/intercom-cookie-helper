@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
 // Config holds all application configuration
@@ -352,4 +354,19 @@ func normalizeAllowedHosts(hosts []string) ([]string, []ProcessedHost) {
 	}
 
 	return normalized, processed
+}
+
+// BuildSanitizer creates a URL sanitizer from the configuration
+func (c Config) BuildSanitizer() (*security.Sanitizer, error) {
+	allow, err := security.NewHostAllowlist(c.AllowedReturnHosts)
+	if err != nil {
+		return nil, err
+	}
+
+	list := c.AllowedQueryParams
+	if len(list) == 0 {
+		list = []string{"utm_campaign", "utm_source"}
+	}
+
+	return security.NewSanitizer(allow, list), nil
 }

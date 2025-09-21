@@ -3,11 +3,13 @@ package httpx
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/config"
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
 // Context key for storing config in request context
@@ -17,6 +19,12 @@ const ConfigContextKey contextKey = "config"
 
 // NewRouter creates and configures a new HTTP router with the given config
 func NewRouter(cfg config.Config) http.Handler {
+	// Build sanitizer at router init - config has been validated earlier
+	sanitizer, err := cfg.BuildSanitizer()
+	if err != nil {
+		log.Fatalf("Failed to build sanitizer: %v", err)
+	}
+
 	r := chi.NewRouter()
 
 	// Add middleware
@@ -35,6 +43,9 @@ func NewRouter(cfg config.Config) http.Handler {
 
 	// Routes
 	r.Get("/healthz", healthzHandler)
+
+	// Login endpoint with referrer validation
+	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get("/login", loginHandler(sanitizer))
 
 	return r
 }
@@ -67,4 +78,35 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// loginHandler creates a login handler with access to the sanitizer
+func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		returnTo := r.URL.Query().Get("return_to")
+		if returnTo == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "missing_return_to",
+			})
+			return
+		}
+
+		sanitizedURL, err := sanitizer.SanitizeReturnURL(returnTo)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "invalid_return_url",
+				"message": err.Error(),
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"sanitized": sanitizedURL,
+		})
+	}
 }
