@@ -84,7 +84,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	router := httpx.NewRouter()
+	router := httpx.NewRouter(cfg)
 
 	addr := ":" + cfg.Port
 	logAt("info", "event", "start",
