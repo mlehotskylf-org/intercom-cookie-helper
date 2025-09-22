@@ -50,6 +50,11 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Login endpoint with referrer validation
 	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get("/login", loginHandler(sanitizer))
 
+	// Debug endpoint (only in non-prod environments)
+	if cfg.Env != "prod" {
+		r.Get("/debug/redirect-cookie", debugRedirectCookieHandler)
+	}
+
 	return r
 }
 
@@ -126,17 +131,8 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			}
 		}
 
-		// Set redirect cookie
-		cookieOpts := security.CookieOpts{
-			Domain:   cfg.CookieDomain,
-			Secure:   cfg.Env == "prod", // Secure in production
-			Path:     "/",
-			SameSite: http.SameSiteLaxMode,
-			TTL:      cfg.RedirectTTL,
-			Skew:     time.Minute, // 1 minute clock skew allowance
-		}
-
-		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cookieOpts, time.Now())
+		// Set redirect cookie using config options
+		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cfg.RedirectCookieOpts(), time.Now())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -147,8 +143,54 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":        true,
 			"sanitized": sanitizedURL,
 		})
 	}
+}
+
+// debugRedirectCookieHandler handles debugging of redirect cookies (non-prod only)
+func debugRedirectCookieHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Get config from context
+	cfg, ok := GetConfigFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "configuration not available",
+		})
+		return
+	}
+
+	// Additional check for production environment (defense in depth)
+	if cfg.Env == "prod" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Prepare keys for reading the cookie
+	primaryKey := cfg.CookieSigningKey
+	var secondaryKey []byte
+	if len(cfg.SecondaryCookieSigningKey) > 0 {
+		secondaryKey = cfg.SecondaryCookieSigningKey
+	}
+
+	// Read and validate the redirect cookie
+	redirectURL, err := security.ReadSignedRedirectCookie(r, primaryKey, secondaryKey, time.Now(), cfg.RedirectSkew)
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Return successful result
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"url":   redirectURL,
+		"valid": true,
+	})
 }
