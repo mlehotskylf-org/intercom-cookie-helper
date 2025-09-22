@@ -1,6 +1,7 @@
 package security
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -206,4 +207,116 @@ func decodeRedirectV1(s string, keyPrimary, keySecondary []byte, now time.Time, 
 	}
 
 	return p, nil
+}
+
+// generateNonce generates a cryptographically secure random nonce
+func generateNonce() (string, error) {
+	b := make([]byte, 12) // 96 bits
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// SetSignedRedirectCookie creates and sets a signed redirect cookie
+func SetSignedRedirectCookie(w http.ResponseWriter, sanitizedURL string, refHost string, key []byte, opts CookieOpts, now time.Time) (string, error) {
+	// Parse and validate URL
+	u, err := url.Parse(sanitizedURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+	if !u.IsAbs() {
+		return "", errors.New("URL must be absolute")
+	}
+	if u.Scheme != "https" {
+		return "", fmt.Errorf("URL scheme must be https, got %s", u.Scheme)
+	}
+
+	// Extract host from URL
+	host := u.Host
+	if host == "" {
+		return "", errors.New("URL has no host")
+	}
+
+	// Generate nonce
+	nonce, err := generateNonce()
+	if err != nil {
+		return "", err
+	}
+
+	// Apply defaults to options
+	opts = opts.WithDefaults()
+
+	// Build payload
+	payload := RedirectPayloadV1{
+		V:     RedirectCookieV1,
+		URL:   sanitizedURL,
+		Host:  host,
+		Ref:   refHost,
+		Iat:   now.Unix(),
+		Exp:   now.Add(opts.TTL).Unix(),
+		Nonce: nonce,
+	}
+
+	// Encode and sign
+	encodedValue, err := encodeRedirectV1(payload, key)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode payload: %w", err)
+	}
+
+	// Create cookie
+	cookie := &http.Cookie{
+		Name:     RedirectCookieName,
+		Value:    encodedValue,
+		Domain:   opts.Domain,
+		Path:     opts.Path,
+		HttpOnly: true,
+		SameSite: opts.SameSite,
+		Secure:   opts.Secure,
+		Expires:  time.Unix(payload.Exp, 0),
+		MaxAge:   int(opts.TTL.Seconds()),
+	}
+
+	// Set cookie
+	http.SetCookie(w, cookie)
+
+	// Return the signed value for debugging/logging
+	return encodedValue, nil
+}
+
+// ReadSignedRedirectCookie reads and verifies a signed redirect cookie
+func ReadSignedRedirectCookie(r *http.Request, keyPrimary, keySecondary []byte, now time.Time, skew time.Duration) (string, error) {
+	// Get cookie
+	cookie, err := r.Cookie(RedirectCookieName)
+	if err != nil {
+		if errors.Is(err, http.ErrNoCookie) {
+			return "", errors.New("redirect cookie not found")
+		}
+		return "", fmt.Errorf("failed to read cookie: %w", err)
+	}
+
+	// Decode and verify
+	payload, err := decodeRedirectV1(cookie.Value, keyPrimary, keySecondary, now, skew)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode cookie: %w", err)
+	}
+
+	// Return the URL from the payload
+	return payload.URL, nil
+}
+
+// ClearRedirectCookie sets an expired cookie to clear it from the browser
+func ClearRedirectCookie(w http.ResponseWriter, domain string) {
+	cookie := &http.Cookie{
+		Name:     RedirectCookieName,
+		Value:    "",
+		Domain:   domain,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   true,
+		MaxAge:   -1,                    // Immediately expire
+		Expires:  time.Unix(0, 0),       // January 1, 1970
+	}
+	http.SetCookie(w, cookie)
 }

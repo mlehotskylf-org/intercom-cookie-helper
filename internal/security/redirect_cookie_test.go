@@ -3,6 +3,8 @@ package security
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -477,4 +479,317 @@ func TestRedirectV1RefOmitempty(t *testing.T) {
 	if decoded.Ref != "" {
 		t.Errorf("expected empty Ref, got %q", decoded.Ref)
 	}
+}
+
+func TestSetAndReadSignedRedirectCookie(t *testing.T) {
+	key := []byte("test-signing-key-1234567890")
+	now := time.Unix(1700000000, 0)
+
+	t.Run("successful set and read", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		opts := CookieOpts{
+			Domain:   ".example.com",
+			Secure:   true,
+			TTL:      30 * time.Minute,
+		}
+
+		// Set cookie
+		signedValue, err := SetSignedRedirectCookie(w, "https://example.com/path", "referrer.com", key, opts, now)
+		if err != nil {
+			t.Fatalf("SetSignedRedirectCookie failed: %v", err)
+		}
+
+		// Verify a value was returned
+		if signedValue == "" {
+			t.Error("expected non-empty signed value")
+		}
+
+		// Check the cookie was set
+		resp := w.Result()
+		cookies := resp.Cookies()
+		if len(cookies) != 1 {
+			t.Fatalf("expected 1 cookie, got %d", len(cookies))
+		}
+
+		cookie := cookies[0]
+		if cookie.Name != RedirectCookieName {
+			t.Errorf("expected cookie name %q, got %q", RedirectCookieName, cookie.Name)
+		}
+		if cookie.Value != signedValue {
+			t.Error("cookie value doesn't match returned signed value")
+		}
+		if cookie.Domain != "example.com" {
+			t.Errorf("expected domain 'example.com', got %q", cookie.Domain)
+		}
+		if cookie.Path != "/" {
+			t.Errorf("expected path '/', got %q", cookie.Path)
+		}
+		if !cookie.HttpOnly {
+			t.Error("expected HttpOnly flag")
+		}
+		if !cookie.Secure {
+			t.Error("expected Secure flag")
+		}
+		if cookie.SameSite != http.SameSiteLaxMode {
+			t.Errorf("expected SameSite=Lax, got %v", cookie.SameSite)
+		}
+
+		// Create request with cookie
+		req := httptest.NewRequest("GET", "https://example.com", nil)
+		req.AddCookie(cookie)
+
+		// Read cookie
+		url, err := ReadSignedRedirectCookie(req, key, nil, now.Add(5*time.Minute), time.Minute)
+		if err != nil {
+			t.Fatalf("ReadSignedRedirectCookie failed: %v", err)
+		}
+		if url != "https://example.com/path" {
+			t.Errorf("expected URL 'https://example.com/path', got %q", url)
+		}
+	})
+
+	t.Run("read with key rotation", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		oldKey := []byte("old-key-1234567890")
+		newKey := []byte("new-key-1234567890")
+		opts := CookieOpts{
+			Domain: ".example.com",
+			TTL:    30 * time.Minute,
+		}
+
+		// Set cookie with old key
+		_, err := SetSignedRedirectCookie(w, "https://example.com/rotated", "", oldKey, opts, now)
+		if err != nil {
+			t.Fatalf("SetSignedRedirectCookie failed: %v", err)
+		}
+
+		// Get the cookie
+		resp := w.Result()
+		cookie := resp.Cookies()[0]
+
+		// Try to read with new key only - should fail
+		req := httptest.NewRequest("GET", "https://example.com", nil)
+		req.AddCookie(cookie)
+		_, err = ReadSignedRedirectCookie(req, newKey, nil, now.Add(5*time.Minute), time.Minute)
+		if err == nil || !strings.Contains(err.Error(), "failed to decode") {
+			t.Errorf("expected decode error, got: %v", err)
+		}
+
+		// Read with key rotation - should succeed
+		url, err := ReadSignedRedirectCookie(req, newKey, oldKey, now.Add(5*time.Minute), time.Minute)
+		if err != nil {
+			t.Fatalf("ReadSignedRedirectCookie with rotation failed: %v", err)
+		}
+		if url != "https://example.com/rotated" {
+			t.Errorf("expected URL 'https://example.com/rotated', got %q", url)
+		}
+	})
+
+	t.Run("cookie not found", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "https://example.com", nil)
+		// No cookie set
+		_, err := ReadSignedRedirectCookie(req, key, nil, now, time.Minute)
+		if err == nil || !strings.Contains(err.Error(), "redirect cookie not found") {
+			t.Errorf("expected 'cookie not found' error, got: %v", err)
+		}
+	})
+
+	t.Run("expired cookie", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		opts := CookieOpts{
+			Domain: ".example.com",
+			TTL:    30 * time.Minute,
+		}
+
+		// Set cookie
+		_, err := SetSignedRedirectCookie(w, "https://example.com/expired", "", key, opts, now)
+		if err != nil {
+			t.Fatalf("SetSignedRedirectCookie failed: %v", err)
+		}
+
+		// Get the cookie
+		resp := w.Result()
+		cookie := resp.Cookies()[0]
+
+		// Try to read after expiration
+		req := httptest.NewRequest("GET", "https://example.com", nil)
+		req.AddCookie(cookie)
+		_, err = ReadSignedRedirectCookie(req, key, nil, now.Add(32*time.Minute), time.Minute)
+		if err == nil || !strings.Contains(err.Error(), "expired") {
+			t.Errorf("expected expiration error, got: %v", err)
+		}
+	})
+}
+
+func TestSetSignedRedirectCookieValidation(t *testing.T) {
+	key := []byte("test-key")
+	now := time.Unix(1700000000, 0)
+	opts := CookieOpts{TTL: 30 * time.Minute}
+
+	tests := []struct {
+		name    string
+		url     string
+		wantErr string
+	}{
+		{
+			name:    "invalid URL",
+			url:     "not a url",
+			wantErr: "URL must be absolute",
+		},
+		{
+			name:    "relative URL",
+			url:     "/path",
+			wantErr: "URL must be absolute",
+		},
+		{
+			name:    "HTTP URL",
+			url:     "http://example.com",
+			wantErr: "URL scheme must be https",
+		},
+		{
+			name:    "URL without host",
+			url:     "https://",
+			wantErr: "URL has no host",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			_, err := SetSignedRedirectCookie(w, tt.url, "", key, opts, now)
+			if err == nil {
+				t.Error("expected error, got nil")
+			} else if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
+			}
+
+			// Verify no cookie was set
+			resp := w.Result()
+			if len(resp.Cookies()) != 0 {
+				t.Error("expected no cookies to be set on error")
+			}
+		})
+	}
+}
+
+func TestClearRedirectCookie(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	// Clear cookie
+	ClearRedirectCookie(w, ".example.com")
+
+	// Check the cookie
+	resp := w.Result()
+	cookies := resp.Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected 1 cookie, got %d", len(cookies))
+	}
+
+	cookie := cookies[0]
+	if cookie.Name != RedirectCookieName {
+		t.Errorf("expected cookie name %q, got %q", RedirectCookieName, cookie.Name)
+	}
+	if cookie.Value != "" {
+		t.Errorf("expected empty value, got %q", cookie.Value)
+	}
+	if cookie.Domain != "example.com" {
+		t.Errorf("expected domain 'example.com', got %q", cookie.Domain)
+	}
+	if cookie.Path != "/" {
+		t.Errorf("expected path '/', got %q", cookie.Path)
+	}
+	if cookie.MaxAge != -1 {
+		t.Errorf("expected MaxAge -1, got %d", cookie.MaxAge)
+	}
+	if !cookie.Expires.Before(time.Now()) {
+		t.Error("expected cookie to be expired")
+	}
+	if !cookie.HttpOnly {
+		t.Error("expected HttpOnly flag")
+	}
+	if !cookie.Secure {
+		t.Error("expected Secure flag")
+	}
+	if cookie.SameSite != http.SameSiteLaxMode {
+		t.Errorf("expected SameSite=Lax, got %v", cookie.SameSite)
+	}
+}
+
+func TestGenerateNonce(t *testing.T) {
+	// Test multiple nonce generations
+	nonces := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		nonce, err := generateNonce()
+		if err != nil {
+			t.Fatalf("generateNonce failed: %v", err)
+		}
+
+		// Check format (base64url)
+		if strings.ContainsAny(nonce, "+/=") {
+			t.Errorf("nonce contains non-base64url characters: %s", nonce)
+		}
+
+		// Decode to verify length
+		decoded, err := base64.RawURLEncoding.DecodeString(nonce)
+		if err != nil {
+			t.Errorf("failed to decode nonce: %v", err)
+		}
+		if len(decoded) != 12 {
+			t.Errorf("expected 12 bytes, got %d", len(decoded))
+		}
+
+		// Check uniqueness
+		if nonces[nonce] {
+			t.Errorf("duplicate nonce generated: %s", nonce)
+		}
+		nonces[nonce] = true
+	}
+}
+
+func TestCookieOptsWithDefaults(t *testing.T) {
+	t.Run("empty opts", func(t *testing.T) {
+		opts := CookieOpts{}
+		result := opts.WithDefaults()
+
+		if result.Path != "/" {
+			t.Errorf("expected Path '/', got %q", result.Path)
+		}
+		if result.SameSite != http.SameSiteLaxMode {
+			t.Errorf("expected SameSite=Lax, got %v", result.SameSite)
+		}
+		if result.Skew != time.Minute {
+			t.Errorf("expected Skew 1m, got %v", result.Skew)
+		}
+	})
+
+	t.Run("preserves existing values", func(t *testing.T) {
+		opts := CookieOpts{
+			Path:     "/custom",
+			SameSite: http.SameSiteStrictMode,
+			Skew:     5 * time.Minute,
+			Domain:   ".example.com",
+			Secure:   true,
+			TTL:      time.Hour,
+		}
+		result := opts.WithDefaults()
+
+		if result.Path != "/custom" {
+			t.Errorf("expected Path '/custom', got %q", result.Path)
+		}
+		if result.SameSite != http.SameSiteStrictMode {
+			t.Errorf("expected SameSite=Strict, got %v", result.SameSite)
+		}
+		if result.Skew != 5*time.Minute {
+			t.Errorf("expected Skew 5m, got %v", result.Skew)
+		}
+		if result.Domain != ".example.com" {
+			t.Errorf("expected Domain '.example.com', got %q", result.Domain)
+		}
+		if !result.Secure {
+			t.Error("expected Secure=true")
+		}
+		if result.TTL != time.Hour {
+			t.Errorf("expected TTL 1h, got %v", result.TTL)
+		}
+	})
 }

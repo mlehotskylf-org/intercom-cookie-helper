@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -85,6 +88,17 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		// Get config from context
+		cfg, ok := GetConfigFromContext(r.Context())
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "internal_error",
+				"message": "configuration not available",
+			})
+			return
+		}
+
 		returnTo := r.URL.Query().Get("return_to")
 		if returnTo == "" {
 			w.WriteHeader(http.StatusBadRequest)
@@ -99,6 +113,34 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "invalid_return_url",
+				"message": err.Error(),
+			})
+			return
+		}
+
+		// Extract referrer host for cookie payload
+		referrerHost := ""
+		if referer := r.Header.Get("Referer"); referer != "" {
+			if refURL, err := url.Parse(referer); err == nil {
+				referrerHost = strings.ToLower(refURL.Host)
+			}
+		}
+
+		// Set redirect cookie
+		cookieOpts := security.CookieOpts{
+			Domain:   cfg.CookieDomain,
+			Secure:   cfg.Env == "prod", // Secure in production
+			Path:     "/",
+			SameSite: http.SameSiteLaxMode,
+			TTL:      cfg.RedirectTTL,
+			Skew:     time.Minute, // 1 minute clock skew allowance
+		}
+
+		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cookieOpts, time.Now())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "cookie_error",
 				"message": err.Error(),
 			})
 			return

@@ -151,12 +151,14 @@ func TestLoginEndpoint(t *testing.T) {
 		Env:                "test",
 		AppHostname:        "localhost",
 		Port:               "8080",
+		CookieDomain:       ".localhost",
 		EnableHSTS:         false,
 		RedirectTTL:        30 * time.Minute,
 		SessionTTL:         24 * time.Hour,
 		LogLevel:           "info",
 		AllowedReturnHosts: []string{"localhost", "example.com", "*.example.com"},
 		AllowedQueryParams: []string{"utm_source", "utm_campaign"},
+		CookieSigningKey:   []byte("test-signing-key-32-bytes-long!"),
 	}
 	router := NewRouter(cfg)
 
