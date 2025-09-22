@@ -1,3 +1,57 @@
+// Package security provides redirect cookie functionality for secure stateless
+// redirect information across OIDC authentication roundtrips.
+//
+// # Purpose
+//
+// This package implements tamper-evident redirect cookies that preserve user's
+// intended destination URL during OAuth/OIDC authentication flows. The cookies
+// enable stateless operation without server-side session storage.
+//
+// # Security Design
+//
+// HMAC Signatures: Uses HMAC-SHA256 for integrity verification. This provides
+// tamper detection but NOT confidentiality - cookie contents are base64-encoded
+// JSON and readable by clients. HMAC ensures the server can detect modifications.
+//
+// HTTPS Requirement: All redirect URLs must use HTTPS to prevent mixed content
+// attacks and ensure transport encryption of the cookie.
+//
+// Host Allowlist: Only pre-approved hosts are permitted in redirect URLs to
+// prevent open redirect vulnerabilities. This includes support for wildcard
+// subdomains (e.g., "*.example.com").
+//
+// # Time-based Security
+//
+// Expiry: Cookies include expiration timestamps and are rejected after their
+// TTL expires, preventing replay attacks with old cookies.
+//
+// Clock Skew: Configurable tolerance (default 1 minute) accommodates clock
+// differences between distributed systems while maintaining security.
+//
+// # Key Rotation
+//
+// Primary/Secondary Keys: Supports seamless key rotation using primary and
+// secondary signing keys. Cookies signed with either key are accepted,
+// allowing zero-downtime key updates.
+//
+// # Privacy
+//
+// No PII Storage: Cookies contain only technical redirect information:
+// - URL: sanitized destination URL
+// - Host: extracted hostname for validation
+// - Ref: optional referrer hostname (not full URL)
+// - Iat/Exp: issued-at and expiration timestamps
+// - Nonce: random value for uniqueness
+//
+// No user identity, session data, or personal information is stored.
+//
+// # Cookie Format
+//
+// Structure: base64url(JSON-payload) + "." + base64url(HMAC-signature)
+// Example: eyJ2IjoidjEi...fQ.h7HwVSheXOBIxSYwAwSvJbpEZIVrUVfGfEis8PRHs94
+//
+// The format is similar to JWT but purpose-built for redirect cookies with
+// specific validation and security requirements.
 package security
 
 import (
@@ -262,6 +316,12 @@ func SetSignedRedirectCookie(w http.ResponseWriter, sanitizedURL string, refHost
 	encodedValue, err := encodeRedirectV1(payload, key)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode payload: %w", err)
+	}
+
+	// Check cookie size to prevent 4KB browser limit overflow
+	// We use 3500 bytes to account for cookie attributes and headers
+	if len(encodedValue) > 3500 {
+		return "", fmt.Errorf("cookie value too large: %d bytes exceeds 3500 byte limit", len(encodedValue))
 	}
 
 	// Create cookie

@@ -249,3 +249,86 @@ curl -H "Referer: https://localhost/" \
 - **Fragment Stripping**: Removes URL fragments for security
 - **Referrer Validation**: Ensures requests come from trusted sources
 - **Input Sanitization**: Validates and normalizes all input URLs
+
+## Redirect Cookie (Stateless Round-Trip)
+
+The server uses signed redirect cookies to maintain user's intended destination URL during OAuth/OIDC authentication flows without server-side session storage.
+
+### What It Stores
+
+The redirect cookie contains:
+- **URL**: Sanitized HTTPS destination URL
+- **Host**: Extracted hostname for validation
+- **Ref**: Optional referrer hostname (not full URL)
+- **Iat/Exp**: Issued-at and expiration timestamps
+- **Nonce**: Random value for uniqueness
+
+**Security**: Cookies are signed with HMAC-SHA256 for tamper detection but are NOT encrypted - contents are readable by clients as base64-encoded JSON.
+
+### Cookie Format
+
+Structure: `base64url(JSON-payload) + "." + base64url(HMAC-signature)`
+
+Example:
+```
+eyJ2IjoidjEiLCJ1cmwiOiJodHRwczovL3Jpc2N2Lm9yZy90ZXN0IiwiaG9zdCI6InJpc2N2Lm9yZyJ9.h7HwVSheXOBIxSYwAwSvJbpEZIVrUVfGfEis8PRHs94
+```
+
+### Testing Locally
+
+1. **Create a redirect cookie** by calling `/login` with valid parameters:
+   ```bash
+   curl -H "Referer: https://localhost/" \
+        "http://localhost:8080/login?return_to=https://riscv.org/test"
+   ```
+
+2. **Inspect the cookie** using the debug endpoint (non-production only):
+   ```bash
+   # Copy the ic_redirect cookie from the Set-Cookie header above, then:
+   curl -H "Cookie: ic_redirect=eyJ2IjoidjEi..." \
+        "http://localhost:8080/debug/redirect-cookie"
+   ```
+
+The debug endpoint shows:
+- Whether the cookie is valid
+- The decoded destination URL
+- Validation status and any errors
+
+### Cookie Security Flags
+
+- **HttpOnly**: `true` - Prevents JavaScript access
+- **SameSite**: `Lax` - Provides CSRF protection while allowing cross-site navigation
+- **Secure**: `true` in production, `false` in development
+- **Domain**: Set to `COOKIE_DOMAIN` environment variable (e.g., `.riscv.org`)
+- **Path**: `/` - Available site-wide
+
+### TTL Configuration
+
+Control cookie lifetime with environment variables:
+
+- **`REDIRECT_TTL`** - How long redirect cookies remain valid
+  - Default: `30m` (30 minutes)
+  - Format: Go duration string (e.g., `1h`, `24h`, `2h30m`)
+  - Used for cookie `Max-Age` and expiration validation
+
+- **`REDIRECT_SKEW`** - Clock skew tolerance for distributed systems
+  - Default: `1m` (1 minute)
+  - Allows for small time differences between servers
+
+Example configuration:
+```bash
+REDIRECT_TTL=1h        # Cookies valid for 1 hour
+REDIRECT_SKEW=5m       # Allow 5 minutes clock skew
+```
+
+### Key Rotation
+
+The system supports seamless key rotation using primary and secondary signing keys:
+
+- **`COOKIE_SIGNING_KEY`** - Primary key for signing new cookies
+- **`SECONDARY_COOKIE_SIGNING_KEY`** - Secondary key for validating old cookies during rotation
+
+During key rotation:
+1. Deploy new servers with rotated keys (old primary becomes secondary)
+2. Cookies signed with either key are accepted
+3. Zero-downtime key updates possible

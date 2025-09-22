@@ -16,6 +16,18 @@ build:
 test:
 	go test ./... -count=1
 
+.PHONY: test-security
+test-security:
+	go test ./internal/security -count=1 -v
+
+.PHONY: test-http
+test-http:
+	go test ./internal/http -count=1 -v
+
+.PHONY: lint
+lint:
+	@echo "TODO: Configure golangci-lint"
+
 .PHONY: fmt
 fmt:
 	gofmt -s -w .

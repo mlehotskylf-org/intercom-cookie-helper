@@ -21,8 +21,11 @@ make stop        # Stop the running server
 make restart     # Restart the server (improved with background start)
 make build       # Build binary to bin/server
 make test        # Run all tests
+make test-security  # Run security package tests with verbose output
+make test-http      # Run HTTP package tests with verbose output
 make fmt         # Format with gofmt
 make fmt-strict  # Format with gofumpt then gofmt
+make lint        # Lint code (placeholder for golangci-lint)
 make docker      # Build Docker image (intercom-cookie-helper:dev)
 make env-print   # Print current configuration (secrets redacted)
 make sanitize URL="https://example.com/path"  # Test URL sanitization
@@ -38,6 +41,7 @@ For development (`ENV=dev`):
 - `AUTH0_CLIENT_ID` - Auth0 client ID
 - `AUTH0_CLIENT_SECRET` - Auth0 client secret (dev only)
 - `COOKIE_SIGNING_KEY` - Hex or base64 encoded key for cookie signing
+- `SECONDARY_COOKIE_SIGNING_KEY` - Secondary key for seamless key rotation (optional)
 
 Optional:
 - `PORT` - Server port (default: 8080)
@@ -46,6 +50,7 @@ Optional:
 - `ALLOWED_QUERY_PARAMS` - CSV list of params to preserve (default: utm_campaign,utm_source)
 - `AUTH0_REDIRECT_PATH` - Auth0 callback path (default: /callback)
 - `REDIRECT_TTL` - Redirect URL validity (default: 30m)
+- `REDIRECT_SKEW` - Clock skew tolerance for distributed systems (default: 1m)
 - `SESSION_TTL` - Session cookie lifetime (default: 24h)
 - `LOG_LEVEL` - info/debug/warn/error (default: info)
 - `ENABLE_HSTS` - Enable HSTS header (default: false in dev, true in prod)
@@ -59,9 +64,17 @@ Optional:
 - **Secret redaction**: Configuration output automatically masks sensitive values as "***"
 
 ## Testing
-- Unit tests exist for config helpers and health endpoint
-- Run specific test: `go test ./internal/config -run TestParseCSV`
-- All tests: `make test`
+- Comprehensive test suite covers all packages:
+  - **Config tests**: Environment variable parsing and validation
+  - **Security tests**: Cookie signing, validation, size limits, key rotation
+  - **HTTP tests**: Router, handlers, middleware, integration flows
+- Test commands:
+  - `make test` - Run all tests
+  - `make test-security` - Run security package tests with verbose output
+  - `make test-http` - Run HTTP package tests with verbose output
+  - `go test ./internal/config -run TestParseCSV` - Run specific test
+- Integration tests validate complete end-to-end flows from login to debug endpoint
+- All tests use httptest for HTTP testing and comprehensive cookie validation
 
 ## Docker
 - Multi-stage build with distroless final image
@@ -77,6 +90,16 @@ Optional:
 
 ## Current Endpoints
 - `GET /healthz` - Health check, returns `{"status":"ok"}`
+- `GET /login?return_to=<url>` - Login endpoint with URL sanitization and cookie creation
+  - **Referrer Guard**: Must have valid HTTPS referrer from allowed hosts
+  - **URL Sanitization**: Filters query parameters and ensures HTTPS
+  - **Cookie Creation**: Sets signed redirect cookie for stateless round-trip
+  - Returns: `200 OK` with `{"ok": true, "sanitized": "https://..."}`
+  - Errors: `400 Bad Request` for invalid URLs or referrers
+- `GET /debug/redirect-cookie` - Debug endpoint for cookie inspection (non-production only)
+  - Decodes and validates redirect cookies
+  - Returns cookie contents and validation status
+  - Available only when `ENV != "prod"`
 
 ## Logging
 Custom key-value logging with RFC3339 timestamps and log level filtering. Example:

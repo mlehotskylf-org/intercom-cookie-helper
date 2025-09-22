@@ -893,3 +893,63 @@ func TestHostManipulationAfterEncoding(t *testing.T) {
 		}
 	})
 }
+
+func TestSetSignedRedirectCookieSizeLimit(t *testing.T) {
+	key := []byte("test-key-32-bytes-123456789012")
+	now := time.Now()
+
+	// Create a very long URL that will result in a cookie exceeding 3500 bytes
+	// We'll construct a URL with a very long query parameter
+	baseURL := "https://example.com/path"
+	longParam := strings.Repeat("a", 4000) // 4000 characters should be enough to exceed the limit
+	longURL := baseURL + "?very_long_param=" + longParam
+
+	opts := CookieOpts{
+		Domain:   ".example.com",
+		Secure:   true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		TTL:      30 * time.Minute,
+		Skew:     time.Minute,
+	}
+
+	// Create a mock response writer
+	rec := httptest.NewRecorder()
+
+	// Attempt to set the cookie - should fail due to size limit
+	_, err := SetSignedRedirectCookie(rec, longURL, "example.com", key, opts, now)
+
+	// Should get an error about cookie being too large
+	if err == nil {
+		t.Error("expected error for oversized cookie, got nil")
+	} else if !strings.Contains(err.Error(), "cookie value too large") {
+		t.Errorf("expected 'cookie value too large' error, got: %v", err)
+	} else if !strings.Contains(err.Error(), "exceeds 3500 byte limit") {
+		t.Errorf("expected error to mention 3500 byte limit, got: %v", err)
+	}
+
+	// Verify no cookie was set
+	cookies := rec.Result().Cookies()
+	if len(cookies) > 0 {
+		t.Errorf("expected no cookies to be set, but got %d cookies", len(cookies))
+	}
+
+	// Test with a normal-sized URL to ensure the function still works correctly
+	t.Run("normal size URL should work", func(t *testing.T) {
+		normalRec := httptest.NewRecorder()
+		normalURL := "https://example.com/normal/path?param=value"
+
+		_, err := SetSignedRedirectCookie(normalRec, normalURL, "example.com", key, opts, now)
+		if err != nil {
+			t.Errorf("expected no error for normal-sized URL, got: %v", err)
+		}
+
+		// Verify cookie was set
+		cookies := normalRec.Result().Cookies()
+		if len(cookies) != 1 {
+			t.Errorf("expected 1 cookie to be set, got %d", len(cookies))
+		} else if cookies[0].Name != RedirectCookieName {
+			t.Errorf("expected cookie name '%s', got '%s'", RedirectCookieName, cookies[0].Name)
+		}
+	})
+}
