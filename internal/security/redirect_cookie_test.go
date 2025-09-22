@@ -303,6 +303,22 @@ func TestDecodeRedirectV1Validation(t *testing.T) {
 			key:     key,
 			wantErr: "invalid signature",
 		},
+		{
+			name: "tampered value - single char flipped",
+			input: func() string {
+				// Flip one character in the middle of the encoded payload
+				tampered := []byte(validEncoded)
+				midPoint := len(validEncoded) / 3 // Pick a point in the payload part
+				if tampered[midPoint] == 'A' {
+					tampered[midPoint] = 'B'
+				} else {
+					tampered[midPoint] = 'A'
+				}
+				return string(tampered)
+			}(),
+			key:     key,
+			wantErr: "invalid signature",
+		},
 	}
 
 	for _, tt := range tests {
@@ -790,6 +806,90 @@ func TestCookieOptsWithDefaults(t *testing.T) {
 		}
 		if result.TTL != time.Hour {
 			t.Errorf("expected TTL 1h, got %v", result.TTL)
+		}
+	})
+}
+
+func TestHostManipulationAfterEncoding(t *testing.T) {
+	key := []byte("test-key")
+	now := time.Unix(1700000000, 0)
+
+	// Create a valid payload
+	originalPayload := RedirectPayloadV1{
+		V:     RedirectCookieV1,
+		URL:   "https://example.com/path",
+		Host:  "example.com",
+		Iat:   now.Unix(),
+		Exp:   now.Add(30 * time.Minute).Unix(),
+		Nonce: "nonce123",
+	}
+
+	// Encode it properly
+	validEncoded, err := encodeRedirectV1(originalPayload, key)
+	if err != nil {
+		t.Fatalf("failed to encode original payload: %v", err)
+	}
+
+	// Decode the payload part
+	parts := strings.Split(validEncoded, ".")
+	if len(parts) != 2 {
+		t.Fatal("expected 2 parts in encoded value")
+	}
+
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		t.Fatalf("failed to decode payload: %v", err)
+	}
+
+	// Parse the JSON, modify the host
+	var payload map[string]interface{}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("failed to unmarshal payload: %v", err)
+	}
+
+	// Change the URL to a different host
+	payload["url"] = "https://evil.com/attack"
+	payload["host"] = "evil.com"
+
+	// Re-encode the modified payload
+	modifiedJSON, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal modified payload: %v", err)
+	}
+
+	// Create a new encoded value with the modified payload but original signature
+	tamperedValue := base64.RawURLEncoding.EncodeToString(modifiedJSON) + "." + parts[1]
+
+	// Try to decode - should fail due to signature mismatch
+	_, err = decodeRedirectV1(tamperedValue, key, nil, now.Add(5*time.Minute), time.Minute)
+	if err == nil {
+		t.Error("expected error for tampered host, got nil")
+	} else if !strings.Contains(err.Error(), "invalid signature") {
+		t.Errorf("expected 'invalid signature' error, got: %v", err)
+	}
+
+	t.Run("host mismatch after successful decode", func(t *testing.T) {
+		// Create a valid payload with mismatched host
+		mismatchedPayload := RedirectPayloadV1{
+			V:     RedirectCookieV1,
+			URL:   "https://example.com/path",
+			Host:  "different.com", // Wrong host for the URL
+			Iat:   now.Unix(),
+			Exp:   now.Add(30 * time.Minute).Unix(),
+			Nonce: "nonce456",
+		}
+
+		// Manually create the token to bypass encode validation
+		jsonBytes, _ := json.Marshal(mismatchedPayload)
+		sig := hmacSignSHA256(key, jsonBytes)
+		encoded := base64.RawURLEncoding.EncodeToString(jsonBytes) + "." + base64.RawURLEncoding.EncodeToString(sig)
+
+		// Try to decode - should fail due to host mismatch
+		_, err := decodeRedirectV1(encoded, key, nil, now.Add(5*time.Minute), time.Minute)
+		if err == nil {
+			t.Error("expected error for host mismatch, got nil")
+		} else if !strings.Contains(err.Error(), "Host mismatch") {
+			t.Errorf("expected 'Host mismatch' error, got: %v", err)
 		}
 	})
 }

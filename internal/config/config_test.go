@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"net/http"
 	"os"
 	"reflect"
 	"testing"
@@ -511,6 +512,66 @@ func TestValidateErrorMessages(t *testing.T) {
 			},
 			expectedErr: `ENV must be 'dev', 'staging', or 'prod' (got "invalid")`,
 		},
+		{
+			name: "secondary cookie signing key too short",
+			config: Config{
+				AppHostname:                "example.com",
+				Port:                       "8080",
+				CookieDomain:              ".example.com",
+				IntercomAppID:             "ic_123",
+				Auth0Domain:               "tenant.auth0.com",
+				Auth0ClientID:             "client123",
+				CookieSigningKey:          make([]byte, 32),
+				SecondaryCookieSigningKey: make([]byte, 16), // Too short
+				Env:                       "dev",
+				IntercomJWTSecret:         "secret",
+				Auth0ClientSecret:         "secret",
+				RedirectTTL:               30 * time.Minute,
+				SessionTTL:                24 * time.Hour,
+				LogLevel:                  "info",
+			},
+			expectedErr: "SECONDARY_COOKIE_SIGNING_KEY must be at least 32 bytes for security (got 16 bytes, need 32+)",
+		},
+		{
+			name: "negative redirect skew",
+			config: Config{
+				AppHostname:       "example.com",
+				Port:              "8080",
+				CookieDomain:      ".example.com",
+				IntercomAppID:     "ic_123",
+				Auth0Domain:       "tenant.auth0.com",
+				Auth0ClientID:     "client123",
+				CookieSigningKey:  make([]byte, 32),
+				Env:               "dev",
+				IntercomJWTSecret: "secret",
+				Auth0ClientSecret: "secret",
+				RedirectTTL:       30 * time.Minute,
+				RedirectSkew:      -1 * time.Minute, // Negative
+				SessionTTL:        24 * time.Hour,
+				LogLevel:          "info",
+			},
+			expectedErr: "REDIRECT_SKEW must be non-negative (got -1m0s)",
+		},
+		{
+			name: "redirect skew too large",
+			config: Config{
+				AppHostname:       "example.com",
+				Port:              "8080",
+				CookieDomain:      ".example.com",
+				IntercomAppID:     "ic_123",
+				Auth0Domain:       "tenant.auth0.com",
+				Auth0ClientID:     "client123",
+				CookieSigningKey:  make([]byte, 32),
+				Env:               "dev",
+				IntercomJWTSecret: "secret",
+				Auth0ClientSecret: "secret",
+				RedirectTTL:       30 * time.Minute,
+				RedirectSkew:      3 * time.Minute, // Too large
+				SessionTTL:        24 * time.Hour,
+				LogLevel:          "info",
+			},
+			expectedErr: "REDIRECT_SKEW must not exceed 2 minutes for security (got 3m0s, max 2m)",
+		},
 	}
 
 	for _, tt := range tests {
@@ -603,6 +664,184 @@ func TestConfig_BuildSanitizer(t *testing.T) {
 				if result != tt.expectedSanitized {
 					t.Errorf("SanitizeReturnURL() = %q, want %q", result, tt.expectedSanitized)
 				}
+			}
+		})
+	}
+}
+
+func TestSecondaryCookieSigningKeyValidation(t *testing.T) {
+	baseConfig := Config{
+		AppHostname:       "example.com",
+		Port:              "8080",
+		CookieDomain:      ".example.com",
+		IntercomAppID:     "ic_123",
+		Auth0Domain:       "tenant.auth0.com",
+		Auth0ClientID:     "client123",
+		CookieSigningKey:  make([]byte, 32),
+		Env:               "dev",
+		IntercomJWTSecret: "secret",
+		Auth0ClientSecret: "secret",
+		RedirectTTL:       30 * time.Minute,
+		RedirectSkew:      time.Minute,
+		SessionTTL:        24 * time.Hour,
+		LogLevel:          "info",
+	}
+
+	t.Run("accepts valid secondary key", func(t *testing.T) {
+		config := baseConfig
+		config.SecondaryCookieSigningKey = make([]byte, 32) // Valid length
+
+		err := config.Validate()
+		if err != nil {
+			t.Errorf("expected no error with valid secondary key, got: %v", err)
+		}
+	})
+
+	t.Run("accepts empty secondary key", func(t *testing.T) {
+		config := baseConfig
+		config.SecondaryCookieSigningKey = nil // Optional
+
+		err := config.Validate()
+		if err != nil {
+			t.Errorf("expected no error with empty secondary key, got: %v", err)
+		}
+	})
+
+	t.Run("accepts larger secondary key", func(t *testing.T) {
+		config := baseConfig
+		config.SecondaryCookieSigningKey = make([]byte, 64) // Larger than minimum
+
+		err := config.Validate()
+		if err != nil {
+			t.Errorf("expected no error with larger secondary key, got: %v", err)
+		}
+	})
+}
+
+func TestRedirectSkewValidation(t *testing.T) {
+	baseConfig := Config{
+		AppHostname:       "example.com",
+		Port:              "8080",
+		CookieDomain:      ".example.com",
+		IntercomAppID:     "ic_123",
+		Auth0Domain:       "tenant.auth0.com",
+		Auth0ClientID:     "client123",
+		CookieSigningKey:  make([]byte, 32),
+		Env:               "dev",
+		IntercomJWTSecret: "secret",
+		Auth0ClientSecret: "secret",
+		RedirectTTL:       30 * time.Minute,
+		SessionTTL:        24 * time.Hour,
+		LogLevel:          "info",
+	}
+
+	validSkews := []time.Duration{
+		0,                     // Zero is valid
+		30 * time.Second,      // Half a minute
+		time.Minute,           // One minute
+		90 * time.Second,      // 1.5 minutes
+		2 * time.Minute,       // Maximum allowed
+	}
+
+	for _, skew := range validSkews {
+		t.Run("accepts valid skew", func(t *testing.T) {
+			config := baseConfig
+			config.RedirectSkew = skew
+
+			err := config.Validate()
+			if err != nil {
+				t.Errorf("expected no error with %v skew, got: %v", skew, err)
+			}
+		})
+	}
+}
+
+func TestRedirectCookieOpts(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         Config
+		expectedDomain string
+		expectedSecure bool
+		expectedTTL    time.Duration
+		expectedSkew   time.Duration
+	}{
+		{
+			name: "dev environment",
+			config: Config{
+				Env:          "dev",
+				CookieDomain: ".example.com",
+				RedirectTTL:  30 * time.Minute,
+				RedirectSkew: time.Minute,
+			},
+			expectedDomain: ".example.com",
+			expectedSecure: false, // Not secure in dev
+			expectedTTL:    30 * time.Minute,
+			expectedSkew:   time.Minute,
+		},
+		{
+			name: "staging environment",
+			config: Config{
+				Env:          "staging",
+				CookieDomain: ".staging.example.com",
+				RedirectTTL:  15 * time.Minute,
+				RedirectSkew: 30 * time.Second,
+			},
+			expectedDomain: ".staging.example.com",
+			expectedSecure: false, // Not secure in staging
+			expectedTTL:    15 * time.Minute,
+			expectedSkew:   30 * time.Second,
+		},
+		{
+			name: "prod environment",
+			config: Config{
+				Env:          "prod",
+				CookieDomain: ".example.com",
+				RedirectTTL:  time.Hour,
+				RedirectSkew: 2 * time.Minute,
+			},
+			expectedDomain: ".example.com",
+			expectedSecure: true, // Secure in prod
+			expectedTTL:    time.Hour,
+			expectedSkew:   2 * time.Minute,
+		},
+		{
+			name: "custom configuration",
+			config: Config{
+				Env:          "dev",
+				CookieDomain: ".custom.domain.org",
+				RedirectTTL:  45 * time.Minute,
+				RedirectSkew: 0, // No skew
+			},
+			expectedDomain: ".custom.domain.org",
+			expectedSecure: false,
+			expectedTTL:    45 * time.Minute,
+			expectedSkew:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := tt.config.RedirectCookieOpts()
+
+			if opts.Domain != tt.expectedDomain {
+				t.Errorf("Domain: expected %q, got %q", tt.expectedDomain, opts.Domain)
+			}
+			if opts.Secure != tt.expectedSecure {
+				t.Errorf("Secure: expected %t, got %t", tt.expectedSecure, opts.Secure)
+			}
+			if opts.TTL != tt.expectedTTL {
+				t.Errorf("TTL: expected %v, got %v", tt.expectedTTL, opts.TTL)
+			}
+			if opts.Skew != tt.expectedSkew {
+				t.Errorf("Skew: expected %v, got %v", tt.expectedSkew, opts.Skew)
+			}
+
+			// Verify default values are set correctly
+			if opts.Path != "/" {
+				t.Errorf("Path: expected '/', got %q", opts.Path)
+			}
+			if opts.SameSite != http.SameSiteLaxMode {
+				t.Errorf("SameSite: expected Lax, got %v", opts.SameSite)
 			}
 		})
 	}

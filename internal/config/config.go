@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -52,8 +53,14 @@ type Config struct {
 	// Cookie signing key - decoded from hex or base64
 	CookieSigningKey []byte
 
+	// Secondary cookie signing key for key rotation (optional; empty in dev)
+	SecondaryCookieSigningKey []byte
+
 	// Redirect TTL - how long redirect URLs are valid (default: 30m)
 	RedirectTTL time.Duration
+
+	// Redirect skew - clock skew allowance for redirect cookies (default: 1m)
+	RedirectSkew time.Duration
 
 	// Session TTL - OIDC transaction cookie lifetime (default: 24h)
 	SessionTTL time.Duration
@@ -124,6 +131,15 @@ func FromEnv() (Config, error) {
 		}
 	}
 
+	// Parse secondary cookie signing key (optional)
+	if key := getEnv("SECONDARY_COOKIE_SIGNING_KEY", ""); key != "" {
+		var err error
+		cfg.SecondaryCookieSigningKey, err = decodeKey(key)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid SECONDARY_COOKIE_SIGNING_KEY: %w", err)
+		}
+	}
+
 	// Parse durations with defaults
 	var err error
 	cfg.RedirectTTL, err = parseDuration("REDIRECT_TTL", "30m")
@@ -132,6 +148,11 @@ func FromEnv() (Config, error) {
 	}
 
 	cfg.SessionTTL, err = parseDuration("SESSION_TTL", "24h")
+	if err != nil {
+		return cfg, err
+	}
+
+	cfg.RedirectSkew, err = parseDuration("REDIRECT_SKEW", "1m")
 	if err != nil {
 		return cfg, err
 	}
@@ -190,6 +211,19 @@ func (c *Config) Validate() error {
 	}
 	if len(c.CookieSigningKey) < 32 {
 		return fmt.Errorf("COOKIE_SIGNING_KEY must be at least 32 bytes for security (got %d bytes, need 32+)", len(c.CookieSigningKey))
+	}
+
+	// Validate secondary cookie signing key (optional, but if provided must be valid)
+	if len(c.SecondaryCookieSigningKey) > 0 && len(c.SecondaryCookieSigningKey) < 32 {
+		return fmt.Errorf("SECONDARY_COOKIE_SIGNING_KEY must be at least 32 bytes for security (got %d bytes, need 32+)", len(c.SecondaryCookieSigningKey))
+	}
+
+	// Validate redirect skew (0-2m range)
+	if c.RedirectSkew < 0 {
+		return fmt.Errorf("REDIRECT_SKEW must be non-negative (got %v)", c.RedirectSkew)
+	}
+	if c.RedirectSkew > 2*time.Minute {
+		return fmt.Errorf("REDIRECT_SKEW must not exceed 2 minutes for security (got %v, max 2m)", c.RedirectSkew)
 	}
 
 	// Validate environment value
@@ -369,4 +403,16 @@ func (c Config) BuildSanitizer() (*security.Sanitizer, error) {
 	}
 
 	return security.NewSanitizer(allow, list), nil
+}
+
+// RedirectCookieOpts returns the cookie options for redirect cookies
+func (c Config) RedirectCookieOpts() security.CookieOpts {
+	return security.CookieOpts{
+		Domain:   c.CookieDomain,
+		Secure:   c.Env == "prod",
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		TTL:      c.RedirectTTL,
+		Skew:     c.RedirectSkew,
+	}
 }
