@@ -1,196 +1,75 @@
 # Claude Code Context
 
 ## Project Overview
-This is an Intercom cookie helper service that provides authentication flow between Auth0 and Intercom, managing secure cookie-based sessions.
+Authentication bridge service between Auth0 and Intercom with secure cookie-based sessions.
 
 ## Architecture
-- **Language**: Go 1.23
-- **Router**: Chi v5 (github.com/go-chi/chi/v5)
-- **Structure**:
-  - `cmd/server/` - Main application entry point
-  - `internal/auth/` - OAuth2/OIDC authentication with PKCE, token exchange, and ID token parsing
-  - `internal/config/` - Configuration management with env vars
-  - `internal/http/` - HTTP router and handlers including /login and /callback endpoints (package httpx)
-  - `internal/security/` - Cookie signing, URL sanitization, host allowlisting
-  - `web/` - Static web assets
+```
+cmd/server/          - Main entry point
+internal/
+  auth/             - OAuth2/OIDC, token exchange, PKCE
+  config/           - Environment configuration
+  http/             - HTTP handlers (/login, /callback)
+  security/         - Cookie signing, URL sanitization
+```
 
 ## Key Commands
 ```bash
-make start       # Start the server (requires env vars)
-make start-bg    # Start the server in background
-make stop        # Stop the running server
-make restart     # Restart the server (improved with background start)
-make build       # Build binary to bin/server
-make test        # Run all tests
-make test-security  # Run security package tests with verbose output
-make test-http      # Run HTTP package tests with verbose output
-make fmt         # Format with gofmt
-make fmt-strict  # Format with gofumpt then gofmt
-make lint        # Lint code (placeholder for golangci-lint)
-make docker      # Build Docker image (intercom-cookie-helper:dev)
-make env-print   # Print current configuration (secrets redacted)
-make sanitize URL="https://example.com/path"  # Test URL sanitization
+make start          # Start server (requires .env)
+make test           # Run all tests
+make build          # Build binary to bin/server
+make restart        # Restart server
+make env-print      # Show config (secrets redacted)
 ```
-
-## Required Environment Variables
-For development (`ENV=dev`):
-- `APP_HOSTNAME` - Application hostname (e.g., intercom-auth.example.com)
-- `COOKIE_DOMAIN` - Cookie domain eTLD+1 (e.g., .example.com)
-- `INTERCOM_APP_ID` - Intercom application ID
-- `INTERCOM_JWT_SECRET` - Intercom JWT secret (dev only)
-- `AUTH0_DOMAIN` - Auth0 domain
-- `AUTH0_CLIENT_ID` - Auth0 client ID
-- `AUTH0_CLIENT_SECRET` - Auth0 client secret (dev only)
-- `COOKIE_SIGNING_KEY` - Hex or base64 encoded key for cookie signing
-- `SECONDARY_COOKIE_SIGNING_KEY` - Secondary key for seamless key rotation (optional)
-
-Optional:
-- `PORT` - Server port (default: 8080)
-- `ENV` - Environment: dev/staging/prod (default: dev)
-- `ALLOWED_RETURN_HOSTS` - CSV list of allowed redirect hosts
-- `ALLOWED_QUERY_PARAMS` - CSV list of params to preserve (default: utm_campaign,utm_source)
-- `AUTH0_REDIRECT_PATH` - Auth0 callback path (default: /callback)
-- `REDIRECT_TTL` - Redirect URL validity (default: 30m)
-- `REDIRECT_SKEW` - Clock skew tolerance for distributed systems (default: 1m)
-- `SESSION_TTL` - Session cookie lifetime (default: 24h)
-- `LOG_LEVEL` - info/debug/warn/error (default: info)
-- `ENABLE_HSTS` - Enable HSTS header (default: false in dev, true in prod)
-
-## Configuration Notes
-- In production (`ENV=prod`), secrets (INTERCOM_JWT_SECRET, AUTH0_CLIENT_SECRET) must come from secret manager, not env vars
-- The config validation runs in dev mode but is relaxed in prod to allow secret manager integration
-- CSV values are trimmed, lowercased, and deduplicated automatically
-- Cookie signing key accepts hex or base64 encoding
-- **Automatic normalization**: Hostnames lowercased, wildcard patterns preprocessed for fast matching
-- **Secret redaction**: Configuration output automatically masks sensitive values as "***"
-
-## Security Features
-
-### Authentication & Authorization
-- **OAuth2/OIDC with PKCE**: Implements Proof Key for Code Exchange for enhanced OAuth2 security
-- **Referrer Validation**: Requires HTTPS referrer from allowed hosts to prevent CSRF
-- **Host Allowlisting**: Strict validation of return URLs against configured allowed hosts
-- **URL Sanitization**:
-  - Enforces HTTPS-only URLs
-  - Strips unauthorized query parameters
-  - Validates against open redirects
-  - Rejects non-standard ports
-
-### Cookie Security
-- **HMAC-SHA256 Signing**: All cookies are cryptographically signed
-- **Key Rotation**: Support for secondary signing key for seamless rotation
-- **Size Limits**: 3500-byte limit per cookie to prevent overflow attacks
-- **SameSite=Lax**: CSRF protection via SameSite cookie attribute
-- **HttpOnly**: Prevents JavaScript access to cookies
-- **Secure Flag**: HTTPS-only transmission in production
-- **TTL Enforcement**: Configurable expiry with clock skew tolerance
-
-### Error Handling
-- **Information Leak Prevention**: Generic error responses (`{"error": "invalid_request"}`)
-- **Server-Side Logging**: Detailed errors logged internally, not exposed to clients
-- **No URL/Host Exposure**: Malicious URLs never echoed back in responses
-
-### Transport Security
-- **HSTS Support**: Configurable HTTP Strict Transport Security headers
-- **HTTPS Enforcement**: All sensitive operations require HTTPS
-
-## Testing
-- Comprehensive test suite covers all packages:
-  - **Config tests**: Environment variable parsing and validation
-  - **Security tests**: Cookie signing, validation, size limits, key rotation
-  - **HTTP tests**: Router, handlers, middleware, callback endpoint, integration flows
-  - **Auth tests**: PKCE generation, OAuth2 URL building, token exchange, ID token nonce extraction, UserInfo fetching
-- Test commands:
-  - `make test` - Run all tests (all packages pass)
-  - `make test-security` - Run security package tests with verbose output
-  - `make test-http` - Run HTTP package tests with verbose output (includes callback tests)
-  - `go test ./internal/auth -run TestExtractNonceFromIDToken` - Run specific test
-- Integration tests validate complete end-to-end flows including OAuth2 callback handling
-- All tests use httptest for HTTP testing and comprehensive cookie validation
-- Callback endpoint tests cover state mismatch, expired cookies, tampered cookies, and secondary key support
-
-## Docker
-- Multi-stage build with distroless final image
-- Runs as non-root user
-- Build: `make docker`
-- Run: `docker run -p 8081:8080 -e APP_HOSTNAME=... intercom-cookie-helper:dev`
 
 ## Development Workflow
-1. Copy and configure environment variables: `cp .env.example .env`
-2. Load environment and start server: `source .env && make start`
-3. `make test` before committing
-4. `make fmt-strict` to format code consistently
+1. `cp .env.example .env` and configure
+2. `source .env && make start`
+3. Test changes: `make test`
+4. Format: `make fmt-strict`
 
-## Current Endpoints
-- `GET /healthz` - Health check, returns `{"status":"ok"}`
-- `GET /login?return_to=<url>` - OAuth2/OIDC login flow with Auth0
-  - **Security Features**:
-    - Referrer validation: Must have valid HTTPS referrer from allowed hosts
-    - URL sanitization: Validates HTTPS, allowed hosts, filters query parameters
-    - PKCE implementation: Generates code_challenge for OAuth2 security
-  - **Cookie Management**:
-    - `ic_redirect`: Signed cookie storing sanitized return URL (30min TTL)
-    - `ic_oidc_txn`: Transaction cookie with PKCE verifier and nonce (10min TTL)
-    - Both cookies use HMAC-SHA256 signing with key rotation support
-    - SameSite=Lax for CSRF protection
-  - **Response**: `302 Redirect` to Auth0 authorize endpoint with OIDC parameters
-  - **Error Handling**: Generic `{"error": "invalid_request"}` responses to prevent information leakage
-- `GET /callback?code=<code>&state=<state>` - OAuth2/OIDC callback from Auth0
-  - **Security Validation**:
-    - Transaction cookie verification with HMAC signature checking
-    - State parameter validation using constant-time comparison
-    - Configuration validation (Auth0RedirectPath must start with "/")
-  - **Token Exchange**:
-    - Exchanges authorization code for tokens using PKCE code_verifier
-    - Extracts access_token and id_token from response
-    - Verifies nonce in ID token matches transaction nonce (replay attack prevention)
-  - **Response**: Currently returns `{"status":"token_exchange_complete"}` (temporary)
-  - **Error Handling**:
-    - `400 {"error": "invalid_request"}` for validation failures
-    - `400 {"error": "invalid_grant"}` for token exchange failures
-- `GET /debug/redirect-cookie` - Debug endpoint for cookie inspection (non-production only)
-  - Decodes and validates redirect cookies
-  - Returns cookie contents and validation status
-  - Available only when `ENV != "prod"`
+## Current Implementation Status
+- ✅ `/login` - OAuth2 flow initiation with PKCE
+- ✅ `/callback` - Token exchange with nonce verification
+- 🚧 User info fetching from Auth0
+- 🚧 Intercom JWT generation
+- 🚧 Final redirect to Intercom
 
-## Logging
-Custom key-value logging with RFC3339 timestamps and log level filtering. Example:
-```
-2025-09-20T12:00:00Z event:start env:dev port:8080 hostname:localhost cookie_domain:.localhost
-```
-- **Log levels**: debug, info, warn, error with threshold-based filtering
-- **Startup logs**: Configuration displayed with automatic secret redaction
-- **Structured format**: All logs use consistent key:value format for easy parsing
-
-## Configuration Management
-
-### Debug Commands
+## Testing
 ```bash
-# Validate configuration and exit
-./bin/server --check-config
+# Run specific package tests
+go test ./internal/auth -v
+go test ./internal/http -v
 
-# Print current configuration with secrets redacted
-make env-print
-./bin/server --env-print
+# Test specific function
+go test ./internal/auth -run TestExtractNonceFromIDToken
 ```
 
-### Key Features
-- **Actionable validation errors**: Error messages include specific examples and guidance
-- **Hostname normalization**: APP_HOSTNAME validates as host-only (no scheme/port)
-- **Wildcard preprocessing**: ALLOWED_RETURN_HOSTS supports `*.example.com` patterns
-- **Safe configuration output**: Secrets automatically redacted in logs and debug output
-- **Structured logs**: All configuration logged at startup with redacted secrets
+## Code Patterns
 
-### Error Examples
-```
-APP_HOSTNAME is required (set to your domain, e.g., intercom-auth.example.com)
-COOKIE_DOMAIN must start with '.' for subdomain sharing (got "example.com", use ".example.com")
-PORT must be 1-65535 (got "99999")
-```
+### Error Handling
+- Return generic errors to clients: `{"error": "invalid_request"}`
+- Log detailed errors server-side
+- Never expose sensitive data in responses
 
-## Exit Codes
-- 0 - Normal shutdown
-- 1 - Fatal server error (e.g., port binding failed)
-- 2 - Configuration/validation error
-- Keep the code simple and easy to follow.
-- Add comments to methods and on top of files so reader knows what each method and file does.
+### Security
+- Use `crypto/subtle` for constant-time comparisons
+- HMAC-SHA256 for cookie signing
+- Validate all inputs before processing
+
+### Configuration
+- Required fields validated at startup
+- Secrets redacted in logs
+- Environment-specific defaults (dev vs prod)
+
+## Important Files
+- `internal/http/callback.go` - OAuth2 callback handler
+- `internal/auth/token.go` - Token exchange client
+- `internal/security/cookie.go` - Cookie signing/validation
+- `internal/config/config.go` - Configuration management
+
+## Notes
+- Keep code simple and readable
+- Add comments to exported functions
+- All tests must pass before commit
+- Follow existing patterns in codebase

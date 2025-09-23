@@ -1,0 +1,140 @@
+# Configuration Guide
+
+## Environment Variables
+
+### Core Settings
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ENV` | No | `dev` | Environment: `dev`, `staging`, or `prod` |
+| `APP_HOSTNAME` | Yes | - | Your application hostname (e.g., `auth.example.com`) |
+| `PORT` | No | `8080` | Server port |
+| `COOKIE_DOMAIN` | Yes | - | Cookie domain with leading dot (e.g., `.example.com`) |
+
+### Auth0 Settings
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AUTH0_DOMAIN` | Yes | - | Auth0 tenant domain (e.g., `tenant.auth0.com`) |
+| `AUTH0_CLIENT_ID` | Yes | - | Auth0 application client ID |
+| `AUTH0_CLIENT_SECRET` | Dev/Staging | - | Auth0 client secret (use secret manager in prod) |
+| `AUTH0_REDIRECT_PATH` | No | `/callback` | OAuth2 callback path |
+
+### Intercom Settings
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `INTERCOM_APP_ID` | Yes | - | Intercom application ID |
+| `INTERCOM_JWT_SECRET` | Dev/Staging | - | JWT secret (use secret manager in prod) |
+
+### Security Settings
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `COOKIE_SIGNING_KEY` | Yes | - | 32+ byte hex or base64 key |
+| `SECONDARY_COOKIE_SIGNING_KEY` | No | - | Secondary key for rotation |
+| `ALLOWED_RETURN_HOSTS` | No | - | CSV list of allowed redirect hosts |
+| `ALLOWED_QUERY_PARAMS` | No | `utm_campaign,utm_source` | Query params to preserve |
+| `ENABLE_HSTS` | No | `false` (dev), `true` (prod) | Enable HSTS header |
+
+### Timeout Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIRECT_TTL` | `30m` | Redirect cookie validity |
+| `REDIRECT_SKEW` | `1m` | Clock skew tolerance |
+| `TXN_TTL` | `10m` | Transaction cookie lifetime |
+| `TXN_SKEW` | `1m` | Transaction clock skew |
+| `SESSION_TTL` | `24h` | Session duration |
+
+### Observability
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error` |
+
+## Configuration Examples
+
+### Development Setup
+
+```bash
+# .env for local development
+ENV=dev
+APP_HOSTNAME=localhost
+PORT=8080
+COOKIE_DOMAIN=.localhost
+
+# Auth0
+AUTH0_DOMAIN=dev-tenant.auth0.com
+AUTH0_CLIENT_ID=dev-client-id
+AUTH0_CLIENT_SECRET=dev-client-secret
+
+# Intercom
+INTERCOM_APP_ID=ic_dev123
+INTERCOM_JWT_SECRET=dev-jwt-secret
+
+# Security
+COOKIE_SIGNING_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+ALLOWED_RETURN_HOSTS=localhost,*.localhost
+
+# Debug
+LOG_LEVEL=debug
+```
+
+### Production Setup
+
+```bash
+# .env for production
+ENV=prod
+APP_HOSTNAME=auth.example.com
+COOKIE_DOMAIN=.example.com
+
+# Auth0 (secret from secret manager)
+AUTH0_DOMAIN=prod-tenant.auth0.com
+AUTH0_CLIENT_ID=prod-client-id
+
+# Intercom (secret from secret manager)
+INTERCOM_APP_ID=ic_prod456
+
+# Security
+COOKIE_SIGNING_KEY=<strong-random-key>
+SECONDARY_COOKIE_SIGNING_KEY=<rotation-key>
+ALLOWED_RETURN_HOSTS=example.com,*.example.com
+ENABLE_HSTS=true
+```
+
+## Configuration Validation
+
+Run these commands to validate your configuration:
+
+```bash
+# Check configuration and exit
+./bin/server --check-config
+
+# Print configuration (secrets redacted)
+./bin/server --env-print
+make env-print
+```
+
+## Key Rotation
+
+To rotate signing keys without downtime:
+
+1. Deploy with both keys:
+   ```bash
+   COOKIE_SIGNING_KEY=new-key
+   SECONDARY_COOKIE_SIGNING_KEY=old-key
+   ```
+
+2. After all servers updated, remove secondary key:
+   ```bash
+   COOKIE_SIGNING_KEY=new-key
+   # SECONDARY_COOKIE_SIGNING_KEY removed
+   ```
+
+## Notes
+
+- In production, `AUTH0_CLIENT_SECRET` and `INTERCOM_JWT_SECRET` should come from a secret manager
+- Cookie signing keys must be at least 32 bytes when decoded
+- Hostnames in `ALLOWED_RETURN_HOSTS` are automatically lowercased
+- Wildcard patterns (`*.example.com`) are supported for host matching
