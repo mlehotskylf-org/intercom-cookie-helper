@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
@@ -64,6 +65,15 @@ type Config struct {
 
 	// Session TTL - OIDC transaction cookie lifetime (default: 24h)
 	SessionTTL time.Duration
+
+	// Transaction cookie TTL - how long OIDC transaction state is valid (default: 10m)
+	TxnTTL time.Duration
+
+	// Transaction cookie skew - clock skew tolerance for transaction cookies (default: 1m)
+	TxnSkew time.Duration
+
+	// Secondary transaction signing key for rotation (optional)
+	SecondaryTxnSigningKey []byte
 
 	// Log level: info, debug, warn, error (default: info)
 	LogLevel string
@@ -155,6 +165,24 @@ func FromEnv() (Config, error) {
 	cfg.RedirectSkew, err = parseDuration("REDIRECT_SKEW", "1m")
 	if err != nil {
 		return cfg, err
+	}
+
+	cfg.TxnTTL, err = parseDuration("TXN_TTL", "10m")
+	if err != nil {
+		return cfg, err
+	}
+
+	cfg.TxnSkew, err = parseDuration("TXN_SKEW", "1m")
+	if err != nil {
+		return cfg, err
+	}
+
+	// Secondary transaction signing key (optional)
+	if key := getEnv("SECONDARY_TXN_SIGNING_KEY", ""); key != "" {
+		cfg.SecondaryTxnSigningKey, err = decodeKey(key)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid SECONDARY_TXN_SIGNING_KEY: %w", err)
+		}
 	}
 
 	// Log level
@@ -257,6 +285,23 @@ func (c *Config) Validate() error {
 		}
 		if c.Auth0ClientSecret == "" {
 			return fmt.Errorf("AUTH0_CLIENT_SECRET is required in %s environment (get from Auth0 application settings)", c.Env)
+		}
+	}
+
+	// Validate TxnTTL bounds (5m - 20m) - only if set (has defaults)
+	if c.TxnTTL > 0 {
+		if c.TxnTTL < 5*time.Minute {
+			return fmt.Errorf("TXN_TTL must be at least 5m (got %v)", c.TxnTTL)
+		}
+		if c.TxnTTL > 20*time.Minute {
+			return fmt.Errorf("TXN_TTL must be at most 20m (got %v)", c.TxnTTL)
+		}
+	}
+
+	// Validate TxnSkew bounds (0 - 2m) - only if explicitly set
+	if c.TxnSkew > 0 {
+		if c.TxnSkew > 2*time.Minute {
+			return fmt.Errorf("TXN_SKEW must be at most 2m (got %v)", c.TxnSkew)
 		}
 	}
 
@@ -414,5 +459,17 @@ func (c Config) RedirectCookieOpts() security.CookieOpts {
 		SameSite: http.SameSiteLaxMode,
 		TTL:      c.RedirectTTL,
 		Skew:     c.RedirectSkew,
+	}
+}
+
+// TxnCookieOpts returns transaction cookie configuration for OIDC flows
+func (c Config) TxnCookieOpts() auth.TxnOpts {
+	return auth.TxnOpts{
+		Domain:       c.CookieDomain,
+		TTL:          c.TxnTTL,
+		Skew:         c.TxnSkew,
+		Secure:       c.Env == "prod",
+		SigningKey:   c.CookieSigningKey,
+		SecondaryKey: c.SecondaryTxnSigningKey,
 	}
 }

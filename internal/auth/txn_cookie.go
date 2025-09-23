@@ -28,12 +28,14 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -229,4 +231,148 @@ func DecodeTxnV1(s string, keyPrimary, keySecondary []byte, now time.Time, skew 
 	}
 
 	return p, nil
+}
+
+// TxnOpts configures transaction cookie behavior
+type TxnOpts struct {
+	Domain       string        // Cookie domain (e.g., ".example.com")
+	TTL          time.Duration // Cookie lifetime (default 10 minutes)
+	Skew         time.Duration // Clock skew tolerance (default 1 minute)
+	Secure       bool          // Set Secure flag (HTTPS only)
+	SigningKey   []byte        // Primary key for signing
+	SecondaryKey []byte        // Secondary key for rotation (optional)
+}
+
+// SetTxnCookie generates OIDC parameters and sets a signed transaction cookie.
+// It internally generates:
+// - State: Random 32-byte CSRF token
+// - CodeVerifier: PKCE secret (32 bytes = 43 chars)
+// - Nonce: OIDC replay protection (16 bytes)
+//
+// Returns the generated state and code_challenge for use in OAuth2 authorization URL.
+func SetTxnCookie(w http.ResponseWriter, opts TxnOpts) (state string, codeChallenge string, nonce string, err error) {
+	// Validate options
+	if opts.Domain == "" {
+		return "", "", "", errors.New("cookie domain is required")
+	}
+	if len(opts.SigningKey) == 0 {
+		return "", "", "", errors.New("signing key is required")
+	}
+	if opts.TTL <= 0 {
+		opts.TTL = 10 * time.Minute // Default 10 minutes
+	}
+	if opts.Skew < 0 {
+		opts.Skew = 1 * time.Minute // Default 1 minute
+	}
+
+	// Generate OAuth2/OIDC parameters
+	stateBytes := make([]byte, 32)
+	if _, err := rand.Read(stateBytes); err != nil {
+		return "", "", "", fmt.Errorf("failed to generate state: %w", err)
+	}
+	state = base64.RawURLEncoding.EncodeToString(stateBytes)
+
+	codeVerifier, err := NewCodeVerifier(32)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate code verifier: %w", err)
+	}
+
+	codeChallenge, err = CodeChallengeS256(codeVerifier)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate code challenge: %w", err)
+	}
+
+	nonce, err = NewNonce(16)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Create transaction payload
+	now := time.Now()
+	payload := TxnPayloadV1{
+		V:     TxnV1,
+		State: state,
+		CV:    codeVerifier,
+		Nonce: nonce,
+		Iat:   now.Unix(),
+		Exp:   now.Add(opts.TTL).Unix(),
+	}
+
+	// Encode and sign the payload
+	cookieValue, err := EncodeTxnV1(payload, opts.SigningKey)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to encode transaction: %w", err)
+	}
+
+	// Check cookie size (leave room for attributes)
+	if len(cookieValue) > 3500 {
+		return "", "", "", fmt.Errorf("transaction cookie too large: %d bytes exceeds 3500 byte limit", len(cookieValue))
+	}
+
+	// Set the cookie
+	cookie := &http.Cookie{
+		Name:     TxnCookieName,
+		Value:    cookieValue,
+		Domain:   opts.Domain,
+		Path:     "/",
+		MaxAge:   int(opts.TTL.Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   opts.Secure,
+	}
+	http.SetCookie(w, cookie)
+
+	return state, codeChallenge, nonce, nil
+}
+
+// ReadTxnCookie reads and validates a transaction cookie from the request.
+// Returns the decoded payload including state, code_verifier, and nonce.
+func ReadTxnCookie(r *http.Request, opts TxnOpts) (TxnPayloadV1, error) {
+	var zero TxnPayloadV1
+
+	// Validate options
+	if len(opts.SigningKey) == 0 {
+		return zero, errors.New("signing key is required")
+	}
+	if opts.Skew < 0 {
+		opts.Skew = 1 * time.Minute // Default 1 minute
+	}
+
+	// Get the cookie
+	cookie, err := r.Cookie(TxnCookieName)
+	if err != nil {
+		if errors.Is(err, http.ErrNoCookie) {
+			return zero, errors.New("transaction cookie not found")
+		}
+		return zero, fmt.Errorf("failed to read cookie: %w", err)
+	}
+
+	// Decode and verify the cookie
+	payload, err := DecodeTxnV1(cookie.Value, opts.SigningKey, opts.SecondaryKey, time.Now(), opts.Skew)
+	if err != nil {
+		return zero, fmt.Errorf("failed to decode transaction: %w", err)
+	}
+
+	return payload, nil
+}
+
+// ClearTxnCookie sets an expired transaction cookie to clear it from the browser.
+func ClearTxnCookie(w http.ResponseWriter, opts TxnOpts) {
+	// Validate domain
+	if opts.Domain == "" {
+		// Without domain, we can't reliably clear the cookie
+		return
+	}
+
+	cookie := &http.Cookie{
+		Name:     TxnCookieName,
+		Value:    "",
+		Domain:   opts.Domain,
+		Path:     "/",
+		MaxAge:   -1, // Expire immediately
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   opts.Secure,
+	}
+	http.SetCookie(w, cookie)
 }
