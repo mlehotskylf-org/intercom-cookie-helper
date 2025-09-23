@@ -49,6 +49,23 @@ Initiates OAuth2/OIDC authentication flow with Auth0
 - **Response**: `302 Redirect` to Auth0 authorize endpoint
 - **Errors**: Generic `{"error": "invalid_request"}` (no sensitive data exposed)
 
+### `GET /callback?code=<code>&state=<state>`
+Handles OAuth2/OIDC callback from Auth0
+- **Security Features**:
+  - Transaction cookie validation with HMAC signature verification
+  - State parameter validation with constant-time comparison
+  - PKCE code verifier for token exchange
+  - Nonce verification in ID token for replay attack prevention
+- **Processing**:
+  1. Validates transaction cookie and state parameter
+  2. Exchanges authorization code for tokens using PKCE
+  3. Verifies nonce in ID token matches transaction nonce
+  4. Returns success (implementation in progress for user info fetching)
+- **Response**: Currently returns `{"status":"token_exchange_complete"}` (temporary)
+- **Errors**:
+  - `400 {"error": "invalid_request"}` for validation failures
+  - `400 {"error": "invalid_grant"}` for token exchange failures
+
 ## Configuration
 
 Copy `.env.example` to `.env` and update with your values:

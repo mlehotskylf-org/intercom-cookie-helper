@@ -8,9 +8,9 @@ This is an Intercom cookie helper service that provides authentication flow betw
 - **Router**: Chi v5 (github.com/go-chi/chi/v5)
 - **Structure**:
   - `cmd/server/` - Main application entry point
-  - `internal/auth/` - OAuth2/OIDC authentication with PKCE
+  - `internal/auth/` - OAuth2/OIDC authentication with PKCE, token exchange, and ID token parsing
   - `internal/config/` - Configuration management with env vars
-  - `internal/http/` - HTTP router and handlers (package httpx)
+  - `internal/http/` - HTTP router and handlers including /login and /callback endpoints (package httpx)
   - `internal/security/` - Cookie signing, URL sanitization, host allowlisting
   - `web/` - Static web assets
 
@@ -98,15 +98,16 @@ Optional:
 - Comprehensive test suite covers all packages:
   - **Config tests**: Environment variable parsing and validation
   - **Security tests**: Cookie signing, validation, size limits, key rotation
-  - **HTTP tests**: Router, handlers, middleware, integration flows
-  - **Auth tests**: PKCE generation, OAuth2 URL building
+  - **HTTP tests**: Router, handlers, middleware, callback endpoint, integration flows
+  - **Auth tests**: PKCE generation, OAuth2 URL building, token exchange, ID token nonce extraction, UserInfo fetching
 - Test commands:
-  - `make test` - Run all tests
+  - `make test` - Run all tests (all packages pass)
   - `make test-security` - Run security package tests with verbose output
-  - `make test-http` - Run HTTP package tests with verbose output
-  - `go test ./internal/config -run TestParseCSV` - Run specific test
-- Integration tests validate complete end-to-end flows from login to debug endpoint
+  - `make test-http` - Run HTTP package tests with verbose output (includes callback tests)
+  - `go test ./internal/auth -run TestExtractNonceFromIDToken` - Run specific test
+- Integration tests validate complete end-to-end flows including OAuth2 callback handling
 - All tests use httptest for HTTP testing and comprehensive cookie validation
+- Callback endpoint tests cover state mismatch, expired cookies, tampered cookies, and secondary key support
 
 ## Docker
 - Multi-stage build with distroless final image
@@ -134,6 +135,19 @@ Optional:
     - SameSite=Lax for CSRF protection
   - **Response**: `302 Redirect` to Auth0 authorize endpoint with OIDC parameters
   - **Error Handling**: Generic `{"error": "invalid_request"}` responses to prevent information leakage
+- `GET /callback?code=<code>&state=<state>` - OAuth2/OIDC callback from Auth0
+  - **Security Validation**:
+    - Transaction cookie verification with HMAC signature checking
+    - State parameter validation using constant-time comparison
+    - Configuration validation (Auth0RedirectPath must start with "/")
+  - **Token Exchange**:
+    - Exchanges authorization code for tokens using PKCE code_verifier
+    - Extracts access_token and id_token from response
+    - Verifies nonce in ID token matches transaction nonce (replay attack prevention)
+  - **Response**: Currently returns `{"status":"token_exchange_complete"}` (temporary)
+  - **Error Handling**:
+    - `400 {"error": "invalid_request"}` for validation failures
+    - `400 {"error": "invalid_grant"}` for token exchange failures
 - `GET /debug/redirect-cookie` - Debug endpoint for cookie inspection (non-production only)
   - Decodes and validates redirect cookies
   - Returns cookie contents and validation status
