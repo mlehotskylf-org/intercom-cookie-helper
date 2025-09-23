@@ -3,6 +3,7 @@ package httpx
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/config"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
@@ -88,38 +90,26 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-// loginHandler creates a login handler with access to the sanitizer
+// loginHandler creates a login handler that redirects to Auth0 for authentication
 func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		// Get config from context
 		cfg, ok := GetConfigFromContext(r.Context())
 		if !ok {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "internal_error",
-				"message": "configuration not available",
-			})
+			WriteJSONError(w, http.StatusInternalServerError, ErrCodeInternalError, "Configuration not available")
 			return
 		}
 
+		// Step 1: Read and sanitize return_to
 		returnTo := r.URL.Query().Get("return_to")
 		if returnTo == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "missing_return_to",
-			})
+			WriteJSONError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Missing return_to parameter")
 			return
 		}
 
 		sanitizedURL, err := sanitizer.SanitizeReturnURL(returnTo)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "invalid_return_url",
-				"message": err.Error(),
-			})
+			WriteJSONError(w, http.StatusBadRequest, ErrCodeInvalidReturnURL, err.Error())
 			return
 		}
 
@@ -131,22 +121,45 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			}
 		}
 
-		// Set redirect cookie using config options
+		// Step 2: Set redirect cookie
 		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cfg.RedirectCookieOpts(), time.Now())
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "cookie_error",
-				"message": err.Error(),
-			})
+			WriteJSONError(w, http.StatusBadRequest, ErrCodeCookieError, fmt.Sprintf("Failed to set redirect cookie: %v", err))
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"ok":        true,
-			"sanitized": sanitizedURL,
+		// Step 3: Set transaction cookie with PKCE parameters
+		state, codeChallenge, nonce, err := auth.SetTxnCookie(w, cfg.TxnCookieOpts())
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, ErrCodeCookieError, fmt.Sprintf("Failed to set transaction cookie: %v", err))
+			return
+		}
+
+		// Step 4: Build redirect URI
+		redirectURI := fmt.Sprintf("https://%s%s", cfg.AppHostname, cfg.Auth0RedirectPath)
+
+		// Step 5: Build Auth0 authorize URL
+		authorizeURL, err := auth.BuildAuthorizeURL(auth.AuthorizeParams{
+			Domain:              cfg.Auth0Domain,
+			ClientID:            cfg.Auth0ClientID,
+			RedirectURI:         redirectURI,
+			Scope:               "openid profile email",
+			State:               state,
+			Nonce:               nonce,
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: "S256",
 		})
+		if err != nil {
+			WriteJSONError(w, http.StatusInternalServerError, ErrCodeInternalError, fmt.Sprintf("Failed to build authorization URL: %v", err))
+			return
+		}
+
+		// Log the login event (without secrets)
+		log.Printf("Login initiated - return_to: %s, referrer_host: %s, auth0_domain: %s",
+			sanitizedURL, referrerHost, cfg.Auth0Domain)
+
+		// Step 6: Redirect to Auth0
+		http.Redirect(w, r, authorizeURL, http.StatusFound)
 	}
 }
 

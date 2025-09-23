@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,14 @@ func TestHealthEndpoint(t *testing.T) {
 		Port:        "8080",
 		EnableHSTS:  false,
 		RedirectTTL: 30 * time.Minute,
+		Auth0Domain: "test.auth0.com",
+		Auth0ClientID: "test-client-id",
+		Auth0ClientSecret: "test-secret",
+		Auth0RedirectPath: "/callback",
+		IntercomAppID: "test-app",
+		IntercomJWTSecret: "test-jwt",
+		TxnTTL: 10 * time.Minute,
+		TxnSkew: 1 * time.Minute,
 		SessionTTL:  24 * time.Hour,
 		LogLevel:    "info",
 	}
@@ -72,6 +81,14 @@ func TestHSTSHeader(t *testing.T) {
 				Port:        "8080",
 				EnableHSTS:  tt.enableHSTS,
 				RedirectTTL: 30 * time.Minute,
+		Auth0Domain: "test.auth0.com",
+		Auth0ClientID: "test-client-id",
+		Auth0ClientSecret: "test-secret",
+		Auth0RedirectPath: "/callback",
+		IntercomAppID: "test-app",
+		IntercomJWTSecret: "test-jwt",
+		TxnTTL: 10 * time.Minute,
+		TxnSkew: 1 * time.Minute,
 				SessionTTL:  24 * time.Hour,
 				LogLevel:    "info",
 			}
@@ -160,6 +177,14 @@ func TestLoginEndpoint(t *testing.T) {
 		AllowedReturnHosts: []string{"localhost", "example.com", "*.example.com"},
 		AllowedQueryParams: []string{"utm_source", "utm_campaign"},
 		CookieSigningKey:   []byte("test-signing-key-32-bytes-long!"),
+		Auth0Domain:        "test.auth0.com",
+		Auth0ClientID:      "test-client-id",
+		Auth0ClientSecret:  "test-client-secret",
+		Auth0RedirectPath:  "/callback",
+		IntercomAppID:      "test-app-id",
+		IntercomJWTSecret:  "test-jwt-secret",
+		TxnTTL:             10 * time.Minute,
+		TxnSkew:            1 * time.Minute,
 	}
 	router := NewRouter(cfg)
 
@@ -169,48 +194,52 @@ func TestLoginEndpoint(t *testing.T) {
 		referer        string
 		expectedStatus int
 		expectedBody   map[string]string
+		expectRedirect bool
 	}{
 		{
 			name:           "valid return URL with allowed referer",
 			url:            "/login?return_to=https://example.com/path?utm_source=test",
 			referer:        "https://localhost/",
-			expectedStatus: http.StatusOK,
-			expectedBody:   map[string]string{"ok": "true", "sanitized": "https://example.com/path?utm_source=test"},
+			expectedStatus: http.StatusFound, // Expecting redirect to Auth0
+			expectRedirect: true,
 		},
 		{
 			name:           "valid return URL with empty referer",
 			url:            "/login?return_to=https://example.com/path",
 			referer:        "",
-			expectedStatus: http.StatusOK,
-			expectedBody:   map[string]string{"ok": "true", "sanitized": "https://example.com/path"},
+			expectedStatus: http.StatusFound, // Expecting redirect to Auth0
+			expectRedirect: true,
 		},
 		{
 			name:           "valid return URL with subdomain",
 			url:            "/login?return_to=https://sub.example.com/page",
 			referer:        "https://localhost/",
-			expectedStatus: http.StatusOK,
-			expectedBody:   map[string]string{"ok": "true", "sanitized": "https://sub.example.com/page"},
+			expectedStatus: http.StatusFound, // Expecting redirect to Auth0
+			expectRedirect: true,
 		},
 		{
 			name:           "missing return_to parameter",
 			url:            "/login",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "missing_return_to"},
+			expectedBody:   map[string]string{"code": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
 			name:           "disallowed host in return_to",
 			url:            "/login?return_to=https://malicious.com/attack",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_return_url"},
+			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectRedirect: false,
 		},
 		{
 			name:           "non-HTTPS return URL",
 			url:            "/login?return_to=http://example.com/path",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_return_url"},
+			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectRedirect: false,
 		},
 		{
 			name:           "disallowed referer",
@@ -218,6 +247,7 @@ func TestLoginEndpoint(t *testing.T) {
 			referer:        "https://malicious.com/",
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "invalid_referrer"},
+			expectRedirect: false,
 		},
 		{
 			name:           "non-HTTPS referer",
@@ -225,6 +255,69 @@ func TestLoginEndpoint(t *testing.T) {
 			referer:        "http://localhost/",
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "invalid_referrer"},
+			expectRedirect: false,
+		},
+		{
+			name:           "oversized URL (exceeds 3500 bytes)",
+			url:            "/login?return_to=https://example.com/" + strings.Repeat("a", 3600),
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"code": "cookie_error"},
+			expectRedirect: false,
+		},
+		{
+			name:           "malformed URL in return_to",
+			url:            "/login?return_to=https://[invalid",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectRedirect: false,
+		},
+		{
+			name:           "javascript URL in return_to",
+			url:            "/login?return_to=javascript:alert(1)",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectRedirect: false,
+		},
+		{
+			name:           "data URL in return_to",
+			url:            "/login?return_to=data:text/html,<script>alert(1)</script>",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectRedirect: false,
+		},
+		{
+			name:           "URL with disallowed query params",
+			url:            "/login?return_to=https://example.com/path?evil_param=value&utm_source=test",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusFound, // Should succeed but strip evil_param
+			expectRedirect: true,
+		},
+		{
+			name:           "URL with port number",
+			url:            "/login?return_to=https://example.com:8080/path",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // Ports typically not allowed
+			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectRedirect: false,
+		},
+		{
+			name:           "URL with username in authority",
+			url:            "/login?return_to=https://user@example.com/path",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusFound, // Sanitizer strips username and accepts URL
+			expectRedirect: true,
+		},
+		{
+			name:           "empty string return_to parameter",
+			url:            "/login?return_to=",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   map[string]string{"code": "invalid_request"},
+			expectRedirect: false,
 		},
 	}
 
@@ -246,31 +339,61 @@ func TestLoginEndpoint(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
 			}
 
-			if rec.Header().Get("Content-Type") != "application/json" {
-				t.Errorf("expected Content-Type 'application/json', got '%s'", rec.Header().Get("Content-Type"))
-			}
-
-			var response map[string]interface{}
-			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-				t.Fatalf("failed to unmarshal response: %v", err)
-			}
-
-			// Check specific fields based on expected response
-			for key, expectedValue := range tt.expectedBody {
-				actualValue, exists := response[key]
-				if !exists {
-					t.Errorf("expected key '%s' not found in response", key)
-					continue
-				}
-				if key == "message" {
-					// For message field, just verify it exists (don't check exact value)
-					continue
+			if tt.expectRedirect {
+				// For redirects, check Location header points to Auth0
+				location := rec.Header().Get("Location")
+				if location == "" {
+					t.Error("expected Location header for redirect")
+				} else if !strings.Contains(location, "test.auth0.com") {
+					t.Errorf("expected redirect to Auth0 domain, got: %s", location)
 				}
 
-				// Convert actual value to string for comparison
-				actualStr := fmt.Sprintf("%v", actualValue)
-				if actualStr != expectedValue {
-					t.Errorf("for key '%s': expected '%s', got '%s'", key, expectedValue, actualStr)
+				// Check that required cookies were set
+				cookies := rec.Result().Cookies()
+				hasRedirectCookie := false
+				hasTxnCookie := false
+				for _, cookie := range cookies {
+					if cookie.Name == "ic_redirect" {
+						hasRedirectCookie = true
+					}
+					if cookie.Name == "ic_oidc_txn" {
+						hasTxnCookie = true
+					}
+				}
+				if !hasRedirectCookie {
+					t.Error("expected ic_redirect cookie to be set")
+				}
+				if !hasTxnCookie {
+					t.Error("expected ic_txn cookie to be set")
+				}
+			} else {
+				// For non-redirects (error cases), expect JSON error response
+				if rec.Header().Get("Content-Type") != "application/json" {
+					t.Errorf("expected Content-Type 'application/json', got '%s'", rec.Header().Get("Content-Type"))
+				}
+
+				var response map[string]interface{}
+				if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+					t.Fatalf("failed to unmarshal response: %v", err)
+				}
+
+				// Check specific fields based on expected response
+				for key, expectedValue := range tt.expectedBody {
+					actualValue, exists := response[key]
+					if !exists {
+						t.Errorf("expected key '%s' not found in response", key)
+						continue
+					}
+					if key == "message" {
+						// For message field, just verify it exists (don't check exact value)
+						continue
+					}
+
+					// Convert actual value to string for comparison
+					actualStr := fmt.Sprintf("%v", actualValue)
+					if actualStr != expectedValue {
+						t.Errorf("for key '%s': expected '%s', got '%s'", key, expectedValue, actualStr)
+					}
 				}
 			}
 		})

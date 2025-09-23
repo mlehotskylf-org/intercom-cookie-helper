@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,6 +79,14 @@ func TestLoginToDebugIntegration(t *testing.T) {
 				CookieSigningKey:           []byte("integration-test-key-32-bytes!!"),
 				SecondaryCookieSigningKey:  []byte("secondary-test-key-32-bytes-!!"),
 				RedirectSkew:               5 * time.Minute,
+				Auth0Domain:                "test.auth0.com",
+				Auth0ClientID:              "test-client-id",
+				Auth0ClientSecret:          "test-client-secret",
+				Auth0RedirectPath:          "/callback",
+				IntercomAppID:              "test-app-id",
+				IntercomJWTSecret:          "test-jwt-secret",
+				TxnTTL:                     10 * time.Minute,
+				TxnSkew:                    1 * time.Minute,
 			}
 
 			// Step 2: Initialize router with sanitizer and middleware
@@ -97,26 +106,18 @@ func TestLoginToDebugIntegration(t *testing.T) {
 			loginRec := httptest.NewRecorder()
 			router.ServeHTTP(loginRec, loginReq)
 
-			// Check login response
-			if loginRec.Code != http.StatusOK {
-				t.Fatalf("login request failed with status %d: %s", loginRec.Code, loginRec.Body.String())
+			// Check login response - should be a redirect to Auth0
+			if loginRec.Code != http.StatusFound {
+				t.Fatalf("login request expected status 302, got %d: %s", loginRec.Code, loginRec.Body.String())
 			}
 
-			// Parse login response
-			var loginResponse map[string]interface{}
-			if err := json.Unmarshal(loginRec.Body.Bytes(), &loginResponse); err != nil {
-				t.Fatalf("failed to parse login response: %v", err)
+			// Verify redirect to Auth0
+			location := loginRec.Header().Get("Location")
+			if location == "" {
+				t.Fatal("expected Location header for Auth0 redirect")
 			}
-
-			// Verify login response structure
-			if ok, exists := loginResponse["ok"]; !exists || ok != true {
-				t.Errorf("expected login response to have 'ok': true, got %v", loginResponse)
-			}
-
-			if sanitized, exists := loginResponse["sanitized"]; !exists {
-				t.Errorf("expected login response to have 'sanitized' field")
-			} else if sanitizedStr, ok := sanitized.(string); !ok || sanitizedStr != tt.expectedURL {
-				t.Errorf("expected sanitized URL '%s', got '%s'", tt.expectedURL, sanitizedStr)
+			if !strings.Contains(location, "test.auth0.com") {
+				t.Errorf("expected redirect to Auth0, got: %s", location)
 			}
 
 			// Step 4: Capture Set-Cookie header
@@ -209,6 +210,14 @@ func TestLoginToDebugIntegrationWithKeyRotation(t *testing.T) {
 		CookieSigningKey:           []byte("primary-integration-key-32-bytes!"),
 		SecondaryCookieSigningKey:  []byte("secondary-integration-key-32-byt!"),
 		RedirectSkew:               5 * time.Minute,
+		Auth0Domain:                "test.auth0.com",
+		Auth0ClientID:              "test-client-id",
+		Auth0ClientSecret:          "test-client-secret",
+		Auth0RedirectPath:          "/callback",
+		IntercomAppID:              "test-app-id",
+		IntercomJWTSecret:          "test-jwt-secret",
+		TxnTTL:                     10 * time.Minute,
+		TxnSkew:                    1 * time.Minute,
 	}
 
 	router := NewRouter(cfg)
@@ -221,8 +230,8 @@ func TestLoginToDebugIntegrationWithKeyRotation(t *testing.T) {
 	loginRec := httptest.NewRecorder()
 	router.ServeHTTP(loginRec, loginReq)
 
-	if loginRec.Code != http.StatusOK {
-		t.Fatalf("login failed: %s", loginRec.Body.String())
+	if loginRec.Code != http.StatusFound {
+		t.Fatalf("login expected redirect (302), got %d: %s", loginRec.Code, loginRec.Body.String())
 	}
 
 	// Extract cookie
@@ -292,6 +301,14 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 		AllowedQueryParams: []string{"utm_source"},
 		CookieSigningKey:   []byte("integration-test-key-32-bytes!!"),
 		RedirectSkew:       5 * time.Minute,
+		Auth0Domain:        "test.auth0.com",
+		Auth0ClientID:      "test-client-id",
+		Auth0ClientSecret:  "test-client-secret",
+		Auth0RedirectPath:  "/callback",
+		IntercomAppID:      "test-app-id",
+		IntercomJWTSecret:  "test-jwt-secret",
+		TxnTTL:             10 * time.Minute,
+		TxnSkew:            1 * time.Minute,
 	}
 
 	router := NewRouter(cfg)
