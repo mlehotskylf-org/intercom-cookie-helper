@@ -52,6 +52,9 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Login endpoint with referrer validation
 	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get("/login", loginHandler(sanitizer))
 
+	// Callback endpoint - OAuth2 callback handler (skeleton)
+	r.Get("/callback", callbackHandler)
+
 	// Debug endpoint (only in non-prod environments)
 	if cfg.Env != "prod" {
 		r.Get("/debug/redirect-cookie", debugRedirectCookieHandler)
@@ -161,6 +164,37 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		// Step 6: Redirect to Auth0
 		http.Redirect(w, r, authorizeURL, http.StatusFound)
 	}
+}
+
+// callbackHandler handles the OAuth2 callback from Auth0
+// This is a skeleton implementation that returns 501 Not Implemented
+func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	// Log the callback request
+	log.Printf("Callback request received - method: %s, path: %s, query: %s",
+		r.Method, r.URL.Path, r.URL.RawQuery)
+
+	// Get query parameters for logging
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+	errorParam := r.URL.Query().Get("error")
+	errorDesc := r.URL.Query().Get("error_description")
+
+	// Log callback parameters (without sensitive code value)
+	if errorParam != "" {
+		log.Printf("Callback error - error: %s, description: %s", errorParam, errorDesc)
+	} else if code != "" && state != "" {
+		log.Printf("Callback success - state: %s, code_present: true", state)
+	} else {
+		log.Printf("Callback invalid - missing required parameters")
+	}
+
+	// Return 501 Not Implemented for now
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotImplemented)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": "not_implemented",
+		"message": "Callback handler not yet implemented",
+	})
 }
 
 // debugRedirectCookieHandler handles debugging of redirect cookies (non-prod only)

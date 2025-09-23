@@ -178,3 +178,5 @@ PORT must be 1-65535 (got "99999")
 - 0 - Normal shutdown
 - 1 - Fatal server error (e.g., port binding failed)
 - 2 - Configuration/validation error
+- Keep the code simple and easy to follow.
+- Add comments to methods and on top of files so reader knows what each method and file does.
