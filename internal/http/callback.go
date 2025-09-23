@@ -84,14 +84,69 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Transaction validated - code_verifier_present: %v, nonce_present: %v, redirect_uri: %s",
 		txn.CV != "", txn.Nonce != "", redirectURI)
 
-	// TODO: Implement token exchange and further processing
-	// For now, return 501 Not Implemented
+	// Step 6: Perform token exchange with Auth0
+	tokenResp, err := auth.ExchangeCode(
+		r.Context(),
+		cfg.Auth0Domain,
+		cfg.Auth0ClientID,
+		cfg.Auth0ClientSecret, // dev only - in production, use client authentication
+		redirectURI,
+		code,
+		txn.CV, // code_verifier for PKCE
+	)
+	if err != nil {
+		log.Printf("Token exchange failed: %v", err)
+		writeCallbackError(w, http.StatusBadRequest, "invalid_grant", "")
+		return
+	}
+
+	// Step 7: Extract tokens (do not log them)
+	accessToken := tokenResp.AccessToken
+	idToken := tokenResp.IDToken
+
+	// Verify we have the required tokens
+	if accessToken == "" {
+		log.Printf("Token exchange succeeded but access_token is missing")
+		writeCallbackError(w, http.StatusBadRequest, "invalid_grant", "")
+		return
+	}
+
+	log.Printf("Token exchange successful - has_access_token: true, has_id_token: %v", idToken != "")
+
+	// Step 8: Verify nonce in ID token if present (extra CSRF replay defense)
+	if idToken != "" {
+		idTokenNonce, err := auth.ExtractNonceFromIDToken(idToken)
+		if err != nil {
+			log.Printf("Failed to extract nonce from ID token: %v", err)
+			// Require valid nonce extraction as security policy
+			writeCallbackError(w, http.StatusBadRequest, "invalid_request", "")
+			return
+		}
+
+		// Perform constant-time comparison of nonces
+		if idTokenNonce != "" && txn.Nonce != "" {
+			if subtle.ConstantTimeCompare([]byte(idTokenNonce), []byte(txn.Nonce)) != 1 {
+				log.Printf("Nonce mismatch - expected: %s, got: %s", txn.Nonce, idTokenNonce)
+				writeCallbackError(w, http.StatusBadRequest, "invalid_request", "")
+				return
+			}
+			log.Printf("Nonce verification successful")
+		} else if idTokenNonce != "" || txn.Nonce != "" {
+			// One nonce is present but not the other - this is a mismatch
+			log.Printf("Nonce presence mismatch - txn_nonce_present: %v, id_token_nonce_present: %v",
+				txn.Nonce != "", idTokenNonce != "")
+			writeCallbackError(w, http.StatusBadRequest, "invalid_request", "")
+			return
+		}
+	}
+
+	// TODO: Process tokens and complete authentication flow
+	// For now, return success indication
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"error": "not_implemented",
-		"message": "Token exchange not yet implemented",
-		"debug": "Transaction validated successfully",
+		"status": "token_exchange_complete",
+		"message": "Successfully exchanged authorization code for tokens",
 	})
 }
 

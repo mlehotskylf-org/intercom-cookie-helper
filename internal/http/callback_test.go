@@ -77,6 +77,9 @@ func TestHandleCallback(t *testing.T) {
 		Env:                       "dev",
 		AppHostname:               "example.com",
 		Auth0RedirectPath:         "/callback", // Must start with /
+		Auth0Domain:              "test.auth0.com",
+		Auth0ClientID:            "test-client-id",
+		Auth0ClientSecret:        "test-client-secret",
 	}
 
 	// Valid OIDC parameters (base64url encoded)
@@ -192,8 +195,8 @@ func TestHandleCallback(t *testing.T) {
 				)
 				r.AddCookie(cookie)
 			},
-			expectedStatus: http.StatusNotImplemented, // TODO: Will change when token exchange is implemented
-			expectedError:  "not_implemented",
+			expectedStatus: http.StatusBadRequest, // Will fail because we're not mocking Auth0
+			expectedError:  "invalid_grant",
 		},
 		{
 			name:        "tampered transaction cookie",
@@ -252,8 +255,8 @@ func TestHandleCallback(t *testing.T) {
 				)
 				r.AddCookie(cookie)
 			},
-			expectedStatus: http.StatusNotImplemented, // Should work with secondary key
-			expectedError:  "not_implemented",
+			expectedStatus: http.StatusBadRequest, // Will fail because we're not mocking Auth0
+			expectedError:  "invalid_grant",
 		},
 	}
 
@@ -331,6 +334,9 @@ func TestHandleCallback_MisconfiguredRedirectPath(t *testing.T) {
 		Env:               "dev",
 		AppHostname:       "example.com",
 		Auth0RedirectPath: "callback", // Missing leading slash
+		Auth0Domain:       "test.auth0.com",
+		Auth0ClientID:     "test-client-id",
+		Auth0ClientSecret: "test-client-secret",
 	}
 
 	// Valid OIDC parameters
