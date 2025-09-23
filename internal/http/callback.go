@@ -8,8 +8,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
 // handleCallback processes the OAuth2 callback from Auth0 after user authentication.
@@ -144,13 +146,62 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// TODO: Process tokens and complete authentication flow
-	// For now, return success indication
+	// Step 9: Fetch user information using the access token
+	userInfo, err := auth.FetchUserInfo(r.Context(), cfg.Auth0Domain, accessToken)
+	if err != nil {
+		log.Printf("Failed to fetch user info: %v", err)
+		writeCallbackError(w, http.StatusBadRequest, "invalid_token", "")
+		return
+	}
+
+	// Validate that we have a subject identifier
+	if userInfo.Sub == "" {
+		log.Printf("User info missing required subject identifier")
+		writeCallbackError(w, http.StatusBadRequest, "invalid_token", "")
+		return
+	}
+
+	log.Printf("User info fetched - sub: %s, email_present: %v, name_present: %v",
+		userInfo.Sub, userInfo.Email != "", userInfo.Name != "")
+
+	// Step 10: Read and validate redirect cookie to get return URL
+	var returnTo string
+	redirectURL, err := security.ReadSignedRedirectCookie(
+		r,
+		cfg.CookieSigningKey,
+		cfg.SecondaryCookieSigningKey,
+		time.Now(),
+		cfg.RedirectSkew,
+	)
+	if err != nil {
+		// Fallback to safe default on error
+		returnTo = "https://" + cfg.AppHostname + "/"
+		log.Printf("Failed to read redirect cookie, using fallback URL - reason: %v", err)
+	} else {
+		returnTo = redirectURL
+		log.Printf("Redirect cookie read successfully - return_to: %s", returnTo)
+	}
+
+	// Step 11: Clear the redirect cookie (always, even if read failed)
+	security.ClearRedirectCookie(w, cfg.CookieDomain)
+	log.Printf("Redirect cookie cleared")
+
+	// TODO: Create Intercom JWT with user attributes
+	// TODO: Clear transaction cookie
+	// TODO: Redirect to Intercom with JWT
+
+	// For now, return success indication with user info and return URL
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "token_exchange_complete",
-		"message": "Successfully exchanged authorization code for tokens",
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "authentication_complete",
+		"message": "Successfully authenticated user",
+		"user": map[string]string{
+			"sub":   userInfo.Sub,
+			"email": userInfo.Email,
+			"name":  userInfo.Name,
+		},
+		"return_to": returnTo,
 	})
 }
 
