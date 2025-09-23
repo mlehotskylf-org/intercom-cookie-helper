@@ -1,3 +1,6 @@
+// Package main provides the entry point for the Intercom cookie helper server.
+// This server facilitates OAuth2/OIDC authentication between Intercom and Auth0,
+// managing secure cookie-based sessions for user authentication.
 package main
 
 import (

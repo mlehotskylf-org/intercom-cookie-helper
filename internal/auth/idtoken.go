@@ -1,4 +1,6 @@
-// Package auth provides authentication utilities for OAuth2/OIDC flows
+// Package auth provides authentication utilities for OAuth2/OIDC flows.
+// This file handles ID token parsing for nonce extraction without signature validation.
+// We rely on the authorization code flow for security, not ID token signatures.
 package auth
 
 import (
@@ -14,12 +16,12 @@ type jwtPayload struct {
 }
 
 // ExtractNonceFromIDToken extracts the nonce claim from an ID token without validating the signature.
-// This function only decodes the JWT payload (middle segment) and extracts the nonce value.
-// We rely on the authorization code flow and userinfo endpoint for security,
-// not on ID token signature validation.
+// This is used for replay attack prevention by verifying the nonce matches what we sent.
+// The function only decodes the JWT payload (middle segment) to extract the nonce value.
+// Security note: We rely on the authorization code flow for authentication, not JWT signatures.
 //
 // The function expects a standard JWT format: header.payload.signature
-// Only the payload segment is decoded and parsed.
+// Only the payload segment is decoded and parsed for the nonce claim.
 func ExtractNonceFromIDToken(idToken string) (string, error) {
 	// Check if token is empty
 	if idToken == "" {

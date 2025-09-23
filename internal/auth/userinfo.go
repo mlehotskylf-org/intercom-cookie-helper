@@ -1,3 +1,6 @@
+// Package auth provides OAuth2/OIDC authentication utilities for Auth0 integration.
+// This file handles fetching user attributes from the Auth0 userinfo endpoint
+// using the access token obtained during the OAuth2 flow.
 package auth
 
 import (
@@ -10,14 +13,18 @@ import (
 	"time"
 )
 
-// UserInfo represents the user information from Auth0's userinfo endpoint
+// UserInfo represents the user information from Auth0's userinfo endpoint.
+// Contains stable user identifiers and attributes needed for Intercom JWT generation.
 type UserInfo struct {
-	Sub   string `json:"sub"`
-	Email string `json:"email,omitempty"`
-	Name  string `json:"name,omitempty"`
+	Sub   string `json:"sub"`           // Unique user identifier from Auth0
+	Email string `json:"email,omitempty"` // User's email address if available
+	Name  string `json:"name,omitempty"`  // User's display name if available
 }
 
-// FetchUserInfo retrieves user information using an access token
+// FetchUserInfo retrieves user information from Auth0 using an access token.
+// This is used to get stable user attributes after successful authentication.
+// The userinfo endpoint provides OpenID Connect standard claims about the user.
+// Requires a valid access token with appropriate scopes (openid, email, profile).
 func FetchUserInfo(ctx context.Context, domain, accessToken string) (*UserInfo, error) {
 	// Build userinfo endpoint URL - preserve protocol if already specified
 	var userinfoURL string

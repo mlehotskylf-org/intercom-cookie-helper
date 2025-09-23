@@ -1,4 +1,5 @@
-// Package httpx provides HTTP handlers and middleware
+// Package httpx provides HTTP handlers and middleware for the authentication flow.
+// This package handles the web server routing and OAuth2/OIDC callback processing.
 package httpx
 
 import (
@@ -11,7 +12,10 @@ import (
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
 )
 
-// handleCallback processes the OAuth2 callback from Auth0
+// handleCallback processes the OAuth2 callback from Auth0 after user authentication.
+// It validates the transaction cookie, verifies the state parameter, exchanges the
+// authorization code for tokens using PKCE, and validates the nonce in the ID token.
+// This is the critical security checkpoint in the OAuth2 flow.
 func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())
@@ -150,7 +154,8 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeCallbackError writes a JSON error response for callback errors
+// writeCallbackError writes a standardized JSON error response for callback failures.
+// It ensures consistent error formatting and prevents information leakage.
 func writeCallbackError(w http.ResponseWriter, statusCode int, errorCode, errorMessage string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)

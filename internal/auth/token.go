@@ -1,3 +1,6 @@
+// Package auth provides OAuth2/OIDC authentication utilities for Auth0 integration.
+// This file handles the critical token exchange step where authorization codes are
+// swapped for access tokens and ID tokens using PKCE for enhanced security.
 package auth
 
 import (
@@ -11,7 +14,8 @@ import (
 	"time"
 )
 
-// TokenResponse represents the OAuth2 token response from Auth0
+// TokenResponse represents the OAuth2 token response from Auth0.
+// Contains the access token for API calls and optionally an ID token with user claims.
 type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 	IDToken     string `json:"id_token,omitempty"`
@@ -20,13 +24,17 @@ type TokenResponse struct {
 	Scope       string `json:"scope,omitempty"`
 }
 
-// TokenError represents an OAuth2 error response
+// TokenError represents an OAuth2 error response from the token endpoint.
+// Used to parse error details when token exchange fails.
 type TokenError struct {
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description,omitempty"`
 }
 
-// ExchangeCode exchanges an authorization code for tokens using PKCE
+// ExchangeCode exchanges an authorization code for tokens using PKCE.
+// This is the critical OAuth2 step where the temporary code is swapped for actual tokens.
+// PKCE (code_verifier) prevents authorization code interception attacks.
+// The redirect_uri must match exactly what was used in the initial /login request.
 func ExchangeCode(ctx context.Context, domain, clientID, clientSecret, redirectURI, code, codeVerifier string) (*TokenResponse, error) {
 	// Build token endpoint URL - preserve protocol if already specified
 	var tokenURL string

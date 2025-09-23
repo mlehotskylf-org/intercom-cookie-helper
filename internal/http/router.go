@@ -1,3 +1,5 @@
+// Package httpx provides HTTP handlers, middleware, and routing for the OAuth2/OIDC flow.
+// This package serves as the HTTP layer orchestrating authentication between Intercom and Auth0.
 package httpx
 
 import (
@@ -22,7 +24,9 @@ type contextKey string
 
 const ConfigContextKey contextKey = "config"
 
-// NewRouter creates and configures a new HTTP router with the given config
+// NewRouter creates and configures a new HTTP router with all application endpoints.
+// Sets up middleware for logging, recovery, HSTS, and request context enrichment.
+// Routes are configured with appropriate security middleware where needed.
 func NewRouter(cfg config.Config) http.Handler {
 	// Build sanitizer at router init - config has been validated earlier
 	sanitizer, err := cfg.BuildSanitizer()
@@ -63,7 +67,8 @@ func NewRouter(cfg config.Config) http.Handler {
 	return r
 }
 
-// configMiddleware adds the config to the request context
+// configMiddleware adds the config to the request context.
+// This allows handlers to access configuration without global state.
 func configMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +78,8 @@ func configMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 	}
 }
 
-// hstsMiddleware adds the Strict-Transport-Security header
+// hstsMiddleware adds the Strict-Transport-Security header.
+// Forces HTTPS for one year with subdomains included for security.
 func hstsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -81,7 +87,8 @@ func hstsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// GetConfigFromContext retrieves the config from the request context
+// GetConfigFromContext retrieves the config from the request context.
+// Returns false if config is not found in context.
 func GetConfigFromContext(ctx context.Context) (config.Config, bool) {
 	cfg, ok := ctx.Value(ConfigContextKey).(config.Config)
 	return cfg, ok
@@ -93,7 +100,9 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-// loginHandler creates a login handler that redirects to Auth0 for authentication
+// loginHandler creates a login handler that redirects to Auth0 for authentication.
+// Sets redirect and transaction cookies before initiating OAuth2 flow with PKCE.
+// Validates return_to URL and referrer before processing.
 func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get config from context
@@ -167,7 +176,9 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 }
 
 
-// debugRedirectCookieHandler handles debugging of redirect cookies (non-prod only)
+// debugRedirectCookieHandler handles debugging of redirect cookies (non-prod only).
+// Reads and validates the signed redirect cookie, returning its contents.
+// This endpoint is disabled in production environments for security.
 func debugRedirectCookieHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
