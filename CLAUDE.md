@@ -8,9 +8,10 @@ This is an Intercom cookie helper service that provides authentication flow betw
 - **Router**: Chi v5 (github.com/go-chi/chi/v5)
 - **Structure**:
   - `cmd/server/` - Main application entry point
+  - `internal/auth/` - OAuth2/OIDC authentication with PKCE
   - `internal/config/` - Configuration management with env vars
   - `internal/http/` - HTTP router and handlers (package httpx)
-  - `internal/security/` - Security-related functionality
+  - `internal/security/` - Cookie signing, URL sanitization, host allowlisting
   - `web/` - Static web assets
 
 ## Key Commands
@@ -63,11 +64,42 @@ Optional:
 - **Automatic normalization**: Hostnames lowercased, wildcard patterns preprocessed for fast matching
 - **Secret redaction**: Configuration output automatically masks sensitive values as "***"
 
+## Security Features
+
+### Authentication & Authorization
+- **OAuth2/OIDC with PKCE**: Implements Proof Key for Code Exchange for enhanced OAuth2 security
+- **Referrer Validation**: Requires HTTPS referrer from allowed hosts to prevent CSRF
+- **Host Allowlisting**: Strict validation of return URLs against configured allowed hosts
+- **URL Sanitization**:
+  - Enforces HTTPS-only URLs
+  - Strips unauthorized query parameters
+  - Validates against open redirects
+  - Rejects non-standard ports
+
+### Cookie Security
+- **HMAC-SHA256 Signing**: All cookies are cryptographically signed
+- **Key Rotation**: Support for secondary signing key for seamless rotation
+- **Size Limits**: 3500-byte limit per cookie to prevent overflow attacks
+- **SameSite=Lax**: CSRF protection via SameSite cookie attribute
+- **HttpOnly**: Prevents JavaScript access to cookies
+- **Secure Flag**: HTTPS-only transmission in production
+- **TTL Enforcement**: Configurable expiry with clock skew tolerance
+
+### Error Handling
+- **Information Leak Prevention**: Generic error responses (`{"error": "invalid_request"}`)
+- **Server-Side Logging**: Detailed errors logged internally, not exposed to clients
+- **No URL/Host Exposure**: Malicious URLs never echoed back in responses
+
+### Transport Security
+- **HSTS Support**: Configurable HTTP Strict Transport Security headers
+- **HTTPS Enforcement**: All sensitive operations require HTTPS
+
 ## Testing
 - Comprehensive test suite covers all packages:
   - **Config tests**: Environment variable parsing and validation
   - **Security tests**: Cookie signing, validation, size limits, key rotation
   - **HTTP tests**: Router, handlers, middleware, integration flows
+  - **Auth tests**: PKCE generation, OAuth2 URL building
 - Test commands:
   - `make test` - Run all tests
   - `make test-security` - Run security package tests with verbose output
@@ -90,12 +122,18 @@ Optional:
 
 ## Current Endpoints
 - `GET /healthz` - Health check, returns `{"status":"ok"}`
-- `GET /login?return_to=<url>` - Login endpoint with URL sanitization and cookie creation
-  - **Referrer Guard**: Must have valid HTTPS referrer from allowed hosts
-  - **URL Sanitization**: Filters query parameters and ensures HTTPS
-  - **Cookie Creation**: Sets signed redirect cookie for stateless round-trip
-  - Returns: `200 OK` with `{"ok": true, "sanitized": "https://..."}`
-  - Errors: `400 Bad Request` for invalid URLs or referrers
+- `GET /login?return_to=<url>` - OAuth2/OIDC login flow with Auth0
+  - **Security Features**:
+    - Referrer validation: Must have valid HTTPS referrer from allowed hosts
+    - URL sanitization: Validates HTTPS, allowed hosts, filters query parameters
+    - PKCE implementation: Generates code_challenge for OAuth2 security
+  - **Cookie Management**:
+    - `ic_redirect`: Signed cookie storing sanitized return URL (30min TTL)
+    - `ic_oidc_txn`: Transaction cookie with PKCE verifier and nonce (10min TTL)
+    - Both cookies use HMAC-SHA256 signing with key rotation support
+    - SameSite=Lax for CSRF protection
+  - **Response**: `302 Redirect` to Auth0 authorize endpoint with OIDC parameters
+  - **Error Handling**: Generic `{"error": "invalid_request"}` responses to prevent information leakage
 - `GET /debug/redirect-cookie` - Debug endpoint for cookie inspection (non-production only)
   - Decodes and validates redirect cookies
   - Returns cookie contents and validation status

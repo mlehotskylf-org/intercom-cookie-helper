@@ -222,7 +222,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_request"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -230,7 +230,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=https://malicious.com/attack",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -238,7 +238,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=http://example.com/path",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -270,7 +270,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=https://[invalid",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -278,7 +278,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=javascript:alert(1)",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -286,7 +286,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=data:text/html,<script>alert(1)</script>",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -301,7 +301,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=https://example.com:8080/path",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest, // Ports typically not allowed
-			expectedBody:   map[string]string{"code": "invalid_return_url"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -316,7 +316,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=",
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "invalid_request"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 	}

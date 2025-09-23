@@ -1,6 +1,6 @@
-# intercom-cookie-helper
+# Intercom Cookie Helper
 
-A simple Go HTTP server with health check endpoint.
+A secure authentication bridge service for Intercom and Auth0, providing OAuth2/OIDC flows with PKCE, secure cookie management, and comprehensive security features.
 
 ## Quick Start
 
@@ -33,14 +33,21 @@ make sanitize URL="https://example.com/path?param=value"  # Test URL sanitizatio
 
 ## API Endpoints
 
-- `GET /healthz` - Health check endpoint
-  - Returns: `200 OK` with `{"status":"ok"}`
+### `GET /healthz`
+Health check endpoint
+- Returns: `200 OK` with `{"status":"ok"}`
 
-- `GET /login?return_to=<url>` - Login endpoint with URL sanitization
-  - **Referrer Guard**: Must have valid HTTPS referrer from allowed hosts
-  - **URL Sanitization**: Filters query parameters and ensures HTTPS
-  - Returns: `200 OK` with `{"sanitized": "https://..."}`
-  - Errors: `400 Bad Request` for invalid URLs or referrers
+### `GET /login?return_to=<url>`
+Initiates OAuth2/OIDC authentication flow with Auth0
+- **Security Features**:
+  - Referrer validation (HTTPS from allowed hosts)
+  - URL sanitization and host allowlisting
+  - PKCE (Proof Key for Code Exchange) implementation
+- **Cookies Set**:
+  - `ic_redirect`: Signed cookie with sanitized return URL (30min TTL)
+  - `ic_oidc_txn`: Transaction cookie with PKCE verifier and nonce (10min TTL)
+- **Response**: `302 Redirect` to Auth0 authorize endpoint
+- **Errors**: Generic `{"error": "invalid_request"}` (no sensitive data exposed)
 
 ## Configuration
 
@@ -221,34 +228,57 @@ make sanitize URL="https://malicious.com/path"
 Test the `/login` endpoint with proper referrer validation:
 
 ```bash
-# Valid request with allowed referrer
-curl -H "Referer: https://localhost/" \
-     "http://localhost:8080/login?return_to=https://riscv.org/path?utm_source=test&other=filtered"
-# Response: {"sanitized": "https://riscv.org/path?utm_source=test"}
+# Valid request with allowed referrer (redirects to Auth0)
+curl -i -H "Referer: https://localhost/" \
+     "http://localhost:8080/login?return_to=https://localhost/dashboard"
+# Response: 302 Found with Location: https://auth0.com/authorize?...
+# Sets ic_redirect and ic_oidc_txn cookies
 
-# Request without referrer (allowed - some clients strip referrers)
-curl "http://localhost:8080/login?return_to=https://riscv.org/path"
-# Response: {"sanitized": "https://riscv.org/path"}
+# Request without referrer (allowed)
+curl -i "http://localhost:8080/login?return_to=https://localhost/dashboard"
+# Response: 302 Found (redirects to Auth0)
 
 # Request with invalid referrer (blocked)
 curl -H "Referer: https://malicious.com/" \
-     "http://localhost:8080/login?return_to=https://riscv.org/path"
+     "http://localhost:8080/login?return_to=https://localhost/dashboard"
 # Response: {"error": "invalid_referrer"}
 
 # Request with malicious URL (blocked)
 curl -H "Referer: https://localhost/" \
      "http://localhost:8080/login?return_to=javascript:alert('xss')"
-# Response: {"error": "invalid_return_url", "message": "scheme not allowed: javascript"}
+# Response: {"error": "invalid_request"}
 ```
 
-### Security Features
+## Security Features
 
-- **Open Redirect Prevention**: Only allows URLs to configured trusted hosts
-- **HTTPS Enforcement**: Automatically upgrades HTTP URLs to HTTPS
-- **Query Parameter Filtering**: Only preserves allowed parameters (e.g., UTM tracking)
-- **Fragment Stripping**: Removes URL fragments for security
-- **Referrer Validation**: Ensures requests come from trusted sources
-- **Input Sanitization**: Validates and normalizes all input URLs
+### Authentication & Authorization
+- **OAuth2/OIDC with PKCE**: Enhanced OAuth2 security with Proof Key for Code Exchange
+- **Referrer Validation**: Requires HTTPS referrer from allowed hosts
+- **Host Allowlisting**: Strict validation against configured trusted hosts
+- **URL Sanitization**:
+  - HTTPS-only enforcement
+  - Query parameter filtering (preserves only allowed params)
+  - Fragment stripping for security
+  - Port validation (rejects non-standard ports)
+
+### Cookie Security
+- **HMAC-SHA256 Signing**: Cryptographic signing for tamper detection
+- **Key Rotation Support**: Secondary key for seamless rotation
+- **Size Limits**: 3500-byte limit to prevent overflow attacks
+- **Security Flags**:
+  - `HttpOnly`: Prevents JavaScript access
+  - `SameSite=Lax`: CSRF protection
+  - `Secure`: HTTPS-only in production
+- **TTL Enforcement**: Configurable expiry with clock skew tolerance
+
+### Error Handling
+- **Information Leak Prevention**: Generic error responses
+- **Server-Side Logging**: Detailed errors logged internally only
+- **No Sensitive Data Exposure**: URLs and hosts never echoed in errors
+
+### Transport Security
+- **HSTS Support**: Configurable HTTP Strict Transport Security
+- **HTTPS Enforcement**: All sensitive operations require HTTPS
 
 ## Redirect Cookie (Stateless Round-Trip)
 
