@@ -5,14 +5,25 @@ package httpx
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"html/template"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
+
+// AuthContext holds authenticated user information and redirect URL.
+// This struct consolidates all the data needed after successful authentication.
+type AuthContext struct {
+	Sub      string // Unique user identifier from Auth0
+	Email    string // User's email address (optional)
+	Name     string // User's display name (optional)
+	ReturnTo string // Sanitized URL to redirect the user to
+}
 
 // handleCallback processes the OAuth2 callback from Auth0 after user authentication.
 // It validates the transaction cookie, verifies the state parameter, exchanges the
@@ -186,23 +197,36 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	security.ClearRedirectCookie(w, cfg.CookieDomain)
 	log.Printf("Redirect cookie cleared")
 
-	// TODO: Create Intercom JWT with user attributes
-	// TODO: Clear transaction cookie
+	// Step 12: Clear transaction cookie to prevent replay attacks
+	auth.ClearTxnCookie(w, txnOpts)
+	log.Printf("Transaction cookie cleared")
+
+	// Step 13: Build auth context with user info and return URL
+	authCtx := AuthContext{
+		Sub:      userInfo.Sub,
+		Email:    userInfo.Email,
+		Name:     userInfo.Name,
+		ReturnTo: returnTo,
+	}
+
+	// TODO: Create Intercom JWT with user attributes using authCtx
 	// TODO: Redirect to Intercom with JWT
 
-	// For now, return success indication with user info and return URL
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "authentication_complete",
-		"message": "Successfully authenticated user",
-		"user": map[string]string{
-			"sub":   userInfo.Sub,
-			"email": userInfo.Email,
-			"name":  userInfo.Name,
-		},
-		"return_to": returnTo,
-	})
+	// For now, render the success template with auth context
+	tmplPath := filepath.Join("web", "callback-ok.tmpl")
+	tmpl, err := template.ParseFiles(tmplPath)
+	if err != nil {
+		log.Printf("Failed to parse template: %v", err)
+		writeCallbackError(w, http.StatusInternalServerError, "internal_error", "Failed to load success page")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, authCtx); err != nil {
+		log.Printf("Failed to execute template: %v", err)
+		// Don't write error response since headers may have been sent
+		return
+	}
 }
 
 // writeCallbackError writes a standardized JSON error response for callback failures.
