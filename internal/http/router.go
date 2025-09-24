@@ -148,7 +148,13 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		}
 
 		// Step 4: Build redirect URI
-		redirectURI := fmt.Sprintf("https://%s%s", cfg.AppHostname, cfg.Auth0RedirectPath)
+		// Use HTTP for local development, HTTPS for production
+		var redirectURI string
+		if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
+			redirectURI = fmt.Sprintf("http://%s:%s%s", cfg.AppHostname, cfg.Port, cfg.Auth0RedirectPath)
+		} else {
+			redirectURI = fmt.Sprintf("https://%s%s", cfg.AppHostname, cfg.Auth0RedirectPath)
+		}
 
 		// Step 5: Build Auth0 authorize URL
 		authorizeURL, err := auth.BuildAuthorizeURL(auth.AuthorizeParams{

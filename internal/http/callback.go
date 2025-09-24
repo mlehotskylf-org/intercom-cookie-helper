@@ -92,7 +92,15 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURI := "https://" + cfg.AppHostname + cfg.Auth0RedirectPath
+	// Use HTTP for local development, HTTPS for production
+	var redirectURI string
+	if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
+		// For local development, use HTTP and include the port
+		redirectURI = "http://" + cfg.AppHostname + ":" + cfg.Port + cfg.Auth0RedirectPath
+	} else {
+		// For production, use HTTPS without port
+		redirectURI = "https://" + cfg.AppHostname + cfg.Auth0RedirectPath
+	}
 
 	// Step 5: Keep code_verifier and nonce for later use
 	// txn.CV (code_verifier) and txn.Nonce will be used for token exchange
