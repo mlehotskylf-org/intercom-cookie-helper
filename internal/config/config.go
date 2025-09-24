@@ -215,11 +215,18 @@ func (c *Config) Validate() error {
 	if c.CookieDomain == "" {
 		return fmt.Errorf("COOKIE_DOMAIN is required (set to your domain with leading dot, e.g., .example.com)")
 	}
-	if !strings.HasPrefix(c.CookieDomain, ".") {
-		return fmt.Errorf("COOKIE_DOMAIN must start with '.' for subdomain sharing (got %q, use %q)", c.CookieDomain, "."+c.CookieDomain)
-	}
-	if !strings.Contains(c.CookieDomain[1:], ".") {
-		return fmt.Errorf("COOKIE_DOMAIN must contain a dot after the leading dot (got %q, expected format like '.example.com')", c.CookieDomain)
+
+	// Allow special case for localhost in dev mode
+	if c.Env == "dev" && c.CookieDomain == "localhost" {
+		// localhost cookies don't need leading dot
+	} else {
+		// All other domains must have leading dot
+		if !strings.HasPrefix(c.CookieDomain, ".") {
+			return fmt.Errorf("COOKIE_DOMAIN must start with '.' for subdomain sharing (got %q, use %q)", c.CookieDomain, "."+c.CookieDomain)
+		}
+		if !strings.Contains(c.CookieDomain[1:], ".") {
+			return fmt.Errorf("COOKIE_DOMAIN must contain a dot after the leading dot (got %q, expected format like '.example.com')", c.CookieDomain)
+		}
 	}
 
 	if c.IntercomAppID == "" {
