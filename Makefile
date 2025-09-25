@@ -14,7 +14,10 @@ build:
 
 .PHONY: test
 test:
-	go test ./... -count=1
+	# 30s timeout prevents fuzzing tests from being killed by system
+	# Current tests run in ~11-12s, so 30s provides good headroom
+	# -p=1 runs packages sequentially to avoid parallel execution issues
+	go test ./... -count=1 -timeout=30s -p=1
 
 .PHONY: test-security
 test-security:

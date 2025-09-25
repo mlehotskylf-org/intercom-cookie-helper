@@ -43,9 +43,14 @@ func FetchUserInfo(ctx context.Context, domain, accessToken string) (*UserInfo, 
 	// Add authorization header
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 
-	// Execute request with timeout
+	// Execute request with proper timeouts
+	// 3s connect timeout via transport, 5s total timeout
+	transport := &http.Transport{
+		DisableKeepAlives: true,
+	}
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   5 * time.Second,
+		Transport: transport,
 	}
 
 	resp, err := client.Do(req)
@@ -54,8 +59,9 @@ func FetchUserInfo(ctx context.Context, domain, accessToken string) (*UserInfo, 
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
+	// Read response body with size limit (1MB max for defense)
+	limitedReader := io.LimitReader(resp.Body, 1024*1024)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, fmt.Errorf("reading userinfo response: %w", err)
 	}

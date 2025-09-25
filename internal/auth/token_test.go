@@ -103,7 +103,7 @@ func TestExchangeCode(t *testing.T) {
 			},
 			serverStatus:  http.StatusBadRequest,
 			clientSecret:  "test-secret",
-			expectedError: "token exchange failed: invalid_grant",
+			expectedError: "authorization code is invalid or expired",
 		},
 		{
 			name: "invalid client error",
@@ -112,7 +112,7 @@ func TestExchangeCode(t *testing.T) {
 			},
 			serverStatus:  http.StatusUnauthorized,
 			clientSecret:  "test-secret",
-			expectedError: "token exchange failed: invalid_client",
+			expectedError: "client authentication failed",
 		},
 		{
 			name:           "server error without json response",

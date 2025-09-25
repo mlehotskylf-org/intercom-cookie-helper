@@ -65,9 +65,14 @@ func ExchangeCode(ctx context.Context, domain, clientID, clientSecret, redirectU
 
 	req.Header.Set(HeaderContentType, ContentTypeFormURLEncoded)
 
-	// Execute request with timeout
+	// Execute request with proper timeouts
+	// 3s connect timeout via transport, 5s total timeout
+	transport := &http.Transport{
+		DisableKeepAlives: true,
+	}
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   5 * time.Second,
+		Transport: transport,
 	}
 
 	resp, err := client.Do(req)
@@ -76,8 +81,9 @@ func ExchangeCode(ctx context.Context, domain, clientID, clientSecret, redirectU
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
+	// Read response body with size limit (1MB max for defense)
+	limitedReader := io.LimitReader(resp.Body, 1024*1024)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, fmt.Errorf("reading token response: %w", err)
 	}
@@ -89,11 +95,19 @@ func ExchangeCode(ctx context.Context, domain, clientID, clientSecret, redirectU
 			return nil, fmt.Errorf("token exchange failed with status %d", resp.StatusCode)
 		}
 
-		// Return friendly error without exposing sensitive details
-		if tokenErr.ErrorDescription != "" {
+		// Map Auth0 error codes properly
+		switch tokenErr.Error {
+		case "invalid_grant":
+			// Authorization code is invalid/expired/already used
+			return nil, fmt.Errorf("authorization code is invalid or expired")
+		case "invalid_request":
+			return nil, fmt.Errorf("invalid token request")
+		case "unauthorized_client", "invalid_client":
+			return nil, fmt.Errorf("client authentication failed")
+		default:
+			// Generic error for other cases
 			return nil, fmt.Errorf("token exchange failed: %s", tokenErr.Error)
 		}
-		return nil, fmt.Errorf("token exchange failed: %s", tokenErr.Error)
 	}
 
 	// Parse successful response

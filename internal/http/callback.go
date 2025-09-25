@@ -70,7 +70,8 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Callback success - state: %s, code_present: true", state)
+	// Log with redacted state value for security
+	log.Printf("Callback success - state: [REDACTED], code_present: true")
 
 	// Step 2: Read and validate transaction cookie
 	txnOpts := auth.TxnOpts{
@@ -91,7 +92,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Step 3: Validate state parameter (constant-time comparison)
 	if subtle.ConstantTimeCompare([]byte(state), []byte(txn.State)) != 1 {
-		log.Printf("State mismatch - expected: %s, got: %s", txn.State, state)
+		log.Printf("State mismatch detected")
 		renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 		return
 	}
@@ -163,7 +164,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		// Perform constant-time comparison of nonces
 		if idTokenNonce != "" && txn.Nonce != "" {
 			if subtle.ConstantTimeCompare([]byte(idTokenNonce), []byte(txn.Nonce)) != 1 {
-				log.Printf("Nonce mismatch - expected: %s, got: %s", txn.Nonce, idTokenNonce)
+				log.Printf("Nonce mismatch detected")
 				renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 				return
 			}
