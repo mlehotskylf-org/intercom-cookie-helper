@@ -37,6 +37,10 @@ const (
 	TemplateCallbackSuccess = "web/callback-ok.tmpl"
 	// TemplateError is the path to the error page template
 	TemplateError = "web/error.tmpl"
+	// TemplateCallbackSuccessAbs is the absolute path for Docker containers
+	TemplateCallbackSuccessAbs = "/web/callback-ok.tmpl"
+	// TemplateErrorAbs is the absolute path for Docker containers
+	TemplateErrorAbs = "/web/error.tmpl"
 )
 
 // OAuth2/OIDC Endpoints

@@ -396,8 +396,8 @@ func TestNormalizeAllowedHosts(t *testing.T) {
 			wantProcessed:  []ProcessedHost{},
 		},
 		{
-			name:  "normalizes mixed case hosts",
-			hosts: []string{"Example.COM", "SUB.domain.org"},
+			name:           "normalizes mixed case hosts",
+			hosts:          []string{"Example.COM", "SUB.domain.org"},
 			wantNormalized: []string{"example.com", "sub.domain.org"},
 			wantProcessed: []ProcessedHost{
 				{Original: "example.com", Canonical: "example.com", IsWildcard: false},
@@ -405,8 +405,8 @@ func TestNormalizeAllowedHosts(t *testing.T) {
 			},
 		},
 		{
-			name:  "processes wildcard patterns",
-			hosts: []string{"*.EXAMPLE.COM", "specific.host.org"},
+			name:           "processes wildcard patterns",
+			hosts:          []string{"*.EXAMPLE.COM", "specific.host.org"},
 			wantNormalized: []string{"*.example.com", "specific.host.org"},
 			wantProcessed: []ProcessedHost{
 				{Original: "*.example.com", Canonical: "example.com", IsWildcard: true},
@@ -414,8 +414,8 @@ func TestNormalizeAllowedHosts(t *testing.T) {
 			},
 		},
 		{
-			name:  "trims whitespace",
-			hosts: []string{"  localhost  ", " *.example.com "},
+			name:           "trims whitespace",
+			hosts:          []string{"  localhost  ", " *.example.com "},
 			wantNormalized: []string{"localhost", "*.example.com"},
 			wantProcessed: []ProcessedHost{
 				{Original: "localhost", Canonical: "localhost", IsWildcard: false},
@@ -480,18 +480,18 @@ func TestValidateErrorMessages(t *testing.T) {
 		{
 			name: "prod environment with INTERCOM_JWT_SECRET set",
 			config: Config{
-				Env:                "prod",
-				AppHostname:        "example.com",
-				Port:               "8080",
-				CookieDomain:       ".example.com",
-				IntercomAppID:      "ic_123",
-				Auth0Domain:        "tenant.auth0.com",
-				Auth0ClientID:      "client123",
-				CookieSigningKey:   make([]byte, 32),
-				IntercomJWTSecret:  "should-not-be-set",
-				RedirectTTL:        30 * time.Minute,
-				SessionTTL:         24 * time.Hour,
-				LogLevel:           "info",
+				Env:               "prod",
+				AppHostname:       "example.com",
+				Port:              "8080",
+				CookieDomain:      ".example.com",
+				IntercomAppID:     "ic_123",
+				Auth0Domain:       "tenant.auth0.com",
+				Auth0ClientID:     "client123",
+				CookieSigningKey:  make([]byte, 32),
+				IntercomJWTSecret: "should-not-be-set",
+				RedirectTTL:       30 * time.Minute,
+				SessionTTL:        24 * time.Hour,
+				LogLevel:          "info",
 			},
 			expectedErr: "in prod, INTERCOM_JWT_SECRET must be unset (use secret manager instead)",
 		},
@@ -515,8 +515,8 @@ func TestValidateErrorMessages(t *testing.T) {
 		{
 			name: "secondary cookie signing key too short",
 			config: Config{
-				AppHostname:                "example.com",
-				Port:                       "8080",
+				AppHostname:               "example.com",
+				Port:                      "8080",
 				CookieDomain:              ".example.com",
 				IntercomAppID:             "ic_123",
 				Auth0Domain:               "tenant.auth0.com",
@@ -589,11 +589,11 @@ func TestValidateErrorMessages(t *testing.T) {
 
 func TestConfig_BuildSanitizer(t *testing.T) {
 	tests := []struct {
-		name               string
-		config             Config
-		wantErr            bool
-		testURL            string
-		expectedSanitized  string
+		name              string
+		config            Config
+		wantErr           bool
+		testURL           string
+		expectedSanitized string
 	}{
 		{
 			name: "valid config with custom allowed hosts and query params",
@@ -736,11 +736,11 @@ func TestRedirectSkewValidation(t *testing.T) {
 	}
 
 	validSkews := []time.Duration{
-		0,                     // Zero is valid
-		30 * time.Second,      // Half a minute
-		time.Minute,           // One minute
-		90 * time.Second,      // 1.5 minutes
-		2 * time.Minute,       // Maximum allowed
+		0,                // Zero is valid
+		30 * time.Second, // Half a minute
+		time.Minute,      // One minute
+		90 * time.Second, // 1.5 minutes
+		2 * time.Minute,  // Maximum allowed
 	}
 
 	for _, skew := range validSkews {

@@ -375,8 +375,8 @@ func ClearRedirectCookie(w http.ResponseWriter, domain string) {
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   true,
-		MaxAge:   -1,                    // Immediately expire
-		Expires:  time.Unix(0, 0),       // January 1, 1970
+		MaxAge:   -1,              // Immediately expire
+		Expires:  time.Unix(0, 0), // January 1, 1970
 	}
 	http.SetCookie(w, cookie)
 }

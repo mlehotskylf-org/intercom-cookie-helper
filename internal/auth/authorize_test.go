@@ -135,8 +135,8 @@ func TestBuildAuthorizeURL(t *testing.T) {
 			},
 		},
 		{
-			name:        "missing domain",
-			params:      AuthorizeParams{
+			name: "missing domain",
+			params: AuthorizeParams{
 				ClientID:    "client123",
 				RedirectURI: "https://app.example.com/callback",
 				Scope:       "read",
@@ -146,8 +146,8 @@ func TestBuildAuthorizeURL(t *testing.T) {
 			errContains: "domain is required",
 		},
 		{
-			name:        "missing client_id",
-			params:      AuthorizeParams{
+			name: "missing client_id",
+			params: AuthorizeParams{
 				Domain:      "auth.example.com",
 				RedirectURI: "https://app.example.com/callback",
 				Scope:       "read",
@@ -157,8 +157,8 @@ func TestBuildAuthorizeURL(t *testing.T) {
 			errContains: "client_id is required",
 		},
 		{
-			name:        "missing redirect_uri",
-			params:      AuthorizeParams{
+			name: "missing redirect_uri",
+			params: AuthorizeParams{
 				Domain:   "auth.example.com",
 				ClientID: "client123",
 				Scope:    "read",
@@ -168,8 +168,8 @@ func TestBuildAuthorizeURL(t *testing.T) {
 			errContains: "redirect_uri is required",
 		},
 		{
-			name:        "missing scope",
-			params:      AuthorizeParams{
+			name: "missing scope",
+			params: AuthorizeParams{
 				Domain:      "auth.example.com",
 				ClientID:    "client123",
 				RedirectURI: "https://app.example.com/callback",
@@ -179,8 +179,8 @@ func TestBuildAuthorizeURL(t *testing.T) {
 			errContains: "scope is required",
 		},
 		{
-			name:        "missing state",
-			params:      AuthorizeParams{
+			name: "missing state",
+			params: AuthorizeParams{
 				Domain:      "auth.example.com",
 				ClientID:    "client123",
 				RedirectURI: "https://app.example.com/callback",

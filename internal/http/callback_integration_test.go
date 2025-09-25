@@ -22,7 +22,7 @@ type MockAuth0Server struct {
 	TokenError       *auth.TokenError
 	UserInfoResponse map[string]interface{}
 	UserInfoError    map[string]string
-	Nonce           string // Store nonce for ID token generation
+	Nonce            string // Store nonce for ID token generation
 }
 
 // NewMockAuth0Server creates a new mock Auth0 server
@@ -197,17 +197,17 @@ func TestCallbackIntegration(t *testing.T) {
 		TxnSkew:                   5 * time.Minute,
 		TxnTTL:                    10 * time.Minute,
 		CookieDomain:              ".example.com",
-		IntercomAppID:            "test-app-id",
-		IntercomJWTSecret:        "test-jwt-secret",
+		IntercomAppID:             "test-app-id",
+		IntercomJWTSecret:         "test-jwt-secret",
 		Env:                       "test",
 		AppHostname:               "example.com",
 		Auth0RedirectPath:         "/callback",
-		Auth0Domain:              mockAuth0.URL, // Use full URL with http:// prefix
-		Auth0ClientID:            "test-client-id",
-		Auth0ClientSecret:        "test-client-secret",
-		RedirectTTL:              30 * time.Minute,
-		RedirectSkew:             1 * time.Minute,
-		AllowedReturnHosts:       []string{"app.intercom.io"},
+		Auth0Domain:               mockAuth0.URL, // Use full URL with http:// prefix
+		Auth0ClientID:             "test-client-id",
+		Auth0ClientSecret:         "test-client-secret",
+		RedirectTTL:               30 * time.Minute,
+		RedirectSkew:              1 * time.Minute,
+		AllowedReturnHosts:        []string{"app.intercom.io"},
 	}
 
 	tests := []struct {
@@ -599,8 +599,8 @@ func TestCallbackIntegration_OAuthErrors(t *testing.T) {
 	cfg := config.Config{
 		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),
 		CookieDomain:     ".example.com",
-		IntercomAppID:   "test-app-id",
-		AppHostname:     "example.com",
+		IntercomAppID:    "test-app-id",
+		AppHostname:      "example.com",
 	}
 
 	tests := []struct {

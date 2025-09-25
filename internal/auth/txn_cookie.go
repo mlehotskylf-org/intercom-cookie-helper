@@ -14,7 +14,8 @@
 //
 // Like redirect cookies, transaction cookies use HMAC-SHA256 for integrity
 // verification but not encryption. The cookie format is:
-//   base64url(JSON-payload) + "." + base64url(HMAC-signature)
+//
+//	base64url(JSON-payload) + "." + base64url(HMAC-signature)
 //
 // This provides tamper detection while keeping the implementation simple
 // and debuggable. The cookies are HttpOnly to prevent JavaScript access.

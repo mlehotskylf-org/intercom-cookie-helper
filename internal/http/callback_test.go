@@ -125,13 +125,13 @@ func TestHandleCallback(t *testing.T) {
 		TxnSkew:                   5 * time.Minute,
 		TxnTTL:                    10 * time.Minute,
 		CookieDomain:              ".example.com",
-		IntercomAppID:            "test-app-id",
+		IntercomAppID:             "test-app-id",
 		Env:                       "dev",
 		AppHostname:               "example.com",
 		Auth0RedirectPath:         "/callback", // Must start with /
-		Auth0Domain:              "test.auth0.com",
-		Auth0ClientID:            "test-client-id",
-		Auth0ClientSecret:        "test-client-secret",
+		Auth0Domain:               "test.auth0.com",
+		Auth0ClientID:             "test-client-id",
+		Auth0ClientSecret:         "test-client-secret",
 	}
 
 	// Valid OIDC parameters (base64url encoded)

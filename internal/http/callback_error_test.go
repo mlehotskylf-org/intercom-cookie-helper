@@ -19,14 +19,14 @@ func TestHandleCallback_ErrorPage_InvalidState(t *testing.T) {
 
 	// Setup test configuration
 	cfg := config.Config{
-		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),
-		TxnSkew:          5 * time.Minute,
-		TxnTTL:           10 * time.Minute,
-		CookieDomain:     ".example.com",
-		AppHostname:      "example.com",
+		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!!"),
+		TxnSkew:           5 * time.Minute,
+		TxnTTL:            10 * time.Minute,
+		CookieDomain:      ".example.com",
+		AppHostname:       "example.com",
 		Auth0RedirectPath: "/callback",
-		Env:              "prod",
-		Port:             "8080",
+		Env:               "prod",
+		Port:              "8080",
 	}
 
 	// Create request with invalid state (no transaction cookie)
@@ -75,14 +75,14 @@ func TestHandleCallback_ErrorPage_StateMismatch(t *testing.T) {
 
 	// Setup test configuration
 	cfg := config.Config{
-		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),
-		TxnSkew:          5 * time.Minute,
-		TxnTTL:           10 * time.Minute,
-		CookieDomain:     ".example.com",
-		AppHostname:      "example.com",
+		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!!"),
+		TxnSkew:           5 * time.Minute,
+		TxnTTL:            10 * time.Minute,
+		CookieDomain:      ".example.com",
+		AppHostname:       "example.com",
 		Auth0RedirectPath: "/callback",
-		Env:              "prod",
-		Port:             "8080",
+		Env:               "prod",
+		Port:              "8080",
 	}
 
 	// Create valid transaction cookie with different state
@@ -136,11 +136,11 @@ func TestHandleCallback_ErrorPage_MissingCode(t *testing.T) {
 
 	// Setup test configuration
 	cfg := config.Config{
-		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),
-		AppHostname:      "example.com",
+		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!!"),
+		AppHostname:       "example.com",
 		Auth0RedirectPath: "/callback",
-		Env:              "prod",
-		Port:             "8080",
+		Env:               "prod",
+		Port:              "8080",
 	}
 
 	// Create request without code parameter
@@ -177,11 +177,11 @@ func TestHandleCallback_ErrorPage_Auth0Error(t *testing.T) {
 
 	// Setup test configuration
 	cfg := config.Config{
-		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),
-		AppHostname:      "example.com",
+		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!!"),
+		AppHostname:       "example.com",
 		Auth0RedirectPath: "/callback",
-		Env:              "prod",
-		Port:             "8080",
+		Env:               "prod",
+		Port:              "8080",
 	}
 
 	// Create request with Auth0 error
@@ -218,11 +218,11 @@ func TestHandleCallback_ErrorPage_LocalhostConfig(t *testing.T) {
 
 	// Setup localhost configuration
 	cfg := config.Config{
-		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),
-		AppHostname:      "localhost",
+		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!!"),
+		AppHostname:       "localhost",
 		Auth0RedirectPath: "/callback",
-		Env:              "dev",
-		Port:             "8080",
+		Env:               "dev",
+		Port:              "8080",
 	}
 
 	// Create request with invalid state

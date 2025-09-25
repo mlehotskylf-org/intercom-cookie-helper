@@ -181,7 +181,6 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 	}
 }
 
-
 // debugRedirectCookieHandler handles debugging of redirect cookies (non-prod only).
 // Reads and validates the signed redirect cookie, returning its contents.
 // This endpoint is disabled in production environments for security.

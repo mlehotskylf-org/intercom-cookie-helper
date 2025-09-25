@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"net/url"
@@ -234,15 +233,8 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// TODO: Redirect to Intercom with JWT
 
 	// For now, render the success template with auth context
-	tmpl, err := template.ParseFiles(TemplateCallbackSuccess)
-	if err != nil {
-		log.Printf("Failed to parse template: %v", err)
-		renderErrorPage(w, r, ErrorMsgLoadTemplate, cfg)
-		return
-	}
-
 	w.Header().Set(HeaderContentType, ContentTypeHTML)
-	if err := tmpl.Execute(w, authCtx); err != nil {
+	if err := CallbackSuccessTmpl.Execute(w, authCtx); err != nil {
 		log.Printf("Failed to execute template: %v", err)
 		// Don't write error response since headers may have been sent
 		return
@@ -283,18 +275,10 @@ func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string
 		TryAgainURL:  tryAgainURL,
 	}
 
-	// Parse and render the error template
-	tmpl, err := template.ParseFiles(TemplateError)
-	if err != nil {
-		log.Printf("Failed to parse error template: %v", err)
-		// Fall back to JSON error if template fails
-		writeCallbackError(w, http.StatusInternalServerError, "internal_error", "Failed to display error page")
-		return
-	}
-
+	// Render the embedded error template
 	w.Header().Set(HeaderContentType, ContentTypeHTML)
 	w.WriteHeader(http.StatusBadRequest)
-	if err := tmpl.Execute(w, errorCtx); err != nil {
+	if err := ErrorTmpl.Execute(w, errorCtx); err != nil {
 		log.Printf("Failed to execute error template: %v", err)
 		// Don't write another response since headers may have been sent
 	}

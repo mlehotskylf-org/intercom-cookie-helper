@@ -187,4 +187,3 @@ func TestFetchUserInfo_ContextCancellation(t *testing.T) {
 		t.Errorf("expected context cancelled error, got: %v", err)
 	}
 }
-

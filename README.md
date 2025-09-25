@@ -21,7 +21,7 @@ The server starts on port 8080 (or `PORT` if set).
 |----------|-------------|
 | `GET /healthz` | Health check |
 | `GET /login?return_to=<url>` | Initiates OAuth2 authentication with Auth0 |
-| `GET /callback?code=<code>&state=<state>` | Handles OAuth2 callback (in progress) |
+| `GET /callback?code=<code>&state=<state>` | Handles OAuth2 callback from Auth0 |
 
 ## Configuration
 
@@ -65,6 +65,9 @@ make restart  # Restart server
 - **Host allowlisting** - Prevents open redirects
 - **Nonce verification** - Replay attack prevention
 - **Constant-time comparisons** - Timing attack prevention
+- **Request body limits** - DoS prevention (1MB max)
+- **HTTP timeouts** - Connection (3s) and total (5s) timeouts
+- **Log redaction** - Sensitive data never logged
 
 See [docs/SECURITY.md](docs/SECURITY.md) for details.
 

@@ -11,12 +11,12 @@ import (
 
 func TestExchangeCode(t *testing.T) {
 	tests := []struct {
-		name             string
-		serverResponse   interface{}
-		serverStatus     int
-		clientSecret     string
-		expectedError    string
-		validateRequest  func(t *testing.T, r *http.Request)
+		name            string
+		serverResponse  interface{}
+		serverStatus    int
+		clientSecret    string
+		expectedError   string
+		validateRequest func(t *testing.T, r *http.Request)
 	}{
 		{
 			name: "successful token exchange with client secret",

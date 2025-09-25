@@ -21,12 +21,12 @@ import (
 // 6. Assert the decoded URL matches expected value
 func TestLoginToDebugIntegration(t *testing.T) {
 	tests := []struct {
-		name           string
-		returnTo       string
-		referer        string
-		expectedURL    string
-		expectCookie   bool
-		expectDebugOK  bool
+		name          string
+		returnTo      string
+		referer       string
+		expectedURL   string
+		expectCookie  bool
+		expectDebugOK bool
 	}{
 		{
 			name:          "complete flow with valid URL and referer",
@@ -66,27 +66,27 @@ func TestLoginToDebugIntegration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Step 1: Build config with test keys and domains
 			cfg := config.Config{
-				Env:                        "test", // Non-prod for debug endpoint
-				AppHostname:                "localhost",
-				Port:                       "8080",
-				CookieDomain:               ".example.com",
-				EnableHSTS:                 false,
-				RedirectTTL:                30 * time.Minute,
-				SessionTTL:                 24 * time.Hour,
-				LogLevel:                   "info",
-				AllowedReturnHosts:         []string{"example.com", "*.example.com", "localhost"},
-				AllowedQueryParams:         []string{"utm_source", "utm_campaign", "utm_medium"},
-				CookieSigningKey:           []byte("integration-test-key-32-bytes!!"),
-				SecondaryCookieSigningKey:  []byte("secondary-test-key-32-bytes-!!"),
-				RedirectSkew:               5 * time.Minute,
-				Auth0Domain:                "test.auth0.com",
-				Auth0ClientID:              "test-client-id",
-				Auth0ClientSecret:          "test-client-secret",
-				Auth0RedirectPath:          "/callback",
-				IntercomAppID:              "test-app-id",
-				IntercomJWTSecret:          "test-jwt-secret",
-				TxnTTL:                     10 * time.Minute,
-				TxnSkew:                    1 * time.Minute,
+				Env:                       "test", // Non-prod for debug endpoint
+				AppHostname:               "localhost",
+				Port:                      "8080",
+				CookieDomain:              ".example.com",
+				EnableHSTS:                false,
+				RedirectTTL:               30 * time.Minute,
+				SessionTTL:                24 * time.Hour,
+				LogLevel:                  "info",
+				AllowedReturnHosts:        []string{"example.com", "*.example.com", "localhost"},
+				AllowedQueryParams:        []string{"utm_source", "utm_campaign", "utm_medium"},
+				CookieSigningKey:          []byte("integration-test-key-32-bytes!!"),
+				SecondaryCookieSigningKey: []byte("secondary-test-key-32-bytes-!!"),
+				RedirectSkew:              5 * time.Minute,
+				Auth0Domain:               "test.auth0.com",
+				Auth0ClientID:             "test-client-id",
+				Auth0ClientSecret:         "test-client-secret",
+				Auth0RedirectPath:         "/callback",
+				IntercomAppID:             "test-app-id",
+				IntercomJWTSecret:         "test-jwt-secret",
+				TxnTTL:                    10 * time.Minute,
+				TxnSkew:                   1 * time.Minute,
 			}
 
 			// Step 2: Initialize router with sanitizer and middleware
@@ -197,27 +197,27 @@ func TestLoginToDebugIntegration(t *testing.T) {
 func TestLoginToDebugIntegrationWithKeyRotation(t *testing.T) {
 	// Step 1: Create config with primary and secondary keys
 	cfg := config.Config{
-		Env:                        "test",
-		AppHostname:                "localhost",
-		Port:                       "8080",
-		CookieDomain:               ".example.com",
-		EnableHSTS:                 false,
-		RedirectTTL:                30 * time.Minute,
-		SessionTTL:                 24 * time.Hour,
-		LogLevel:                   "info",
-		AllowedReturnHosts:         []string{"example.com"},
-		AllowedQueryParams:         []string{"utm_source"},
-		CookieSigningKey:           []byte("primary-integration-key-32-bytes!"),
-		SecondaryCookieSigningKey:  []byte("secondary-integration-key-32-byt!"),
-		RedirectSkew:               5 * time.Minute,
-		Auth0Domain:                "test.auth0.com",
-		Auth0ClientID:              "test-client-id",
-		Auth0ClientSecret:          "test-client-secret",
-		Auth0RedirectPath:          "/callback",
-		IntercomAppID:              "test-app-id",
-		IntercomJWTSecret:          "test-jwt-secret",
-		TxnTTL:                     10 * time.Minute,
-		TxnSkew:                    1 * time.Minute,
+		Env:                       "test",
+		AppHostname:               "localhost",
+		Port:                      "8080",
+		CookieDomain:              ".example.com",
+		EnableHSTS:                false,
+		RedirectTTL:               30 * time.Minute,
+		SessionTTL:                24 * time.Hour,
+		LogLevel:                  "info",
+		AllowedReturnHosts:        []string{"example.com"},
+		AllowedQueryParams:        []string{"utm_source"},
+		CookieSigningKey:          []byte("primary-integration-key-32-bytes!"),
+		SecondaryCookieSigningKey: []byte("secondary-integration-key-32-byt!"),
+		RedirectSkew:              5 * time.Minute,
+		Auth0Domain:               "test.auth0.com",
+		Auth0ClientID:             "test-client-id",
+		Auth0ClientSecret:         "test-client-secret",
+		Auth0RedirectPath:         "/callback",
+		IntercomAppID:             "test-app-id",
+		IntercomJWTSecret:         "test-jwt-secret",
+		TxnTTL:                    10 * time.Minute,
+		TxnSkew:                   1 * time.Minute,
 	}
 
 	router := NewRouter(cfg)

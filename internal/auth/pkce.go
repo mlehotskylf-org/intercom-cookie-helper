@@ -21,9 +21,10 @@
 // # Usage
 //
 // Generate PKCE parameters for OAuth2 flow:
-//   verifier, err := NewCodeVerifier(32)  // 32 bytes = 43 chars encoded
-//   challenge, err := CodeChallengeS256(verifier)
-//   nonce, err := NewNonce(16)  // 16 bytes = 22 chars encoded
+//
+//	verifier, err := NewCodeVerifier(32)  // 32 bytes = 43 chars encoded
+//	challenge, err := CodeChallengeS256(verifier)
+//	nonce, err := NewNonce(16)  // 16 bytes = 22 chars encoded
 package auth
 
 import (
@@ -36,10 +37,10 @@ import (
 
 // RFC 7636 defines code_verifier length constraints after base64url encoding
 const (
-	MinCodeVerifierBytes = 32  // Results in 43 characters after base64url encoding
-	MaxCodeVerifierBytes = 96  // Results in 128 characters after base64url encoding
-	MinNonceBytes        = 16  // Minimum recommended for sufficient entropy
-	MaxNonceBytes        = 64  // Reasonable upper limit
+	MinCodeVerifierBytes = 32 // Results in 43 characters after base64url encoding
+	MaxCodeVerifierBytes = 96 // Results in 128 characters after base64url encoding
+	MinNonceBytes        = 16 // Minimum recommended for sufficient entropy
+	MaxNonceBytes        = 64 // Reasonable upper limit
 )
 
 // NewCodeVerifier generates a cryptographically secure random code verifier

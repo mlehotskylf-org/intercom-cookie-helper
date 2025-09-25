@@ -169,10 +169,10 @@ func TestHostAllowlist_IsAllowed(t *testing.T) {
 		{"localhost IPv6", "::1", false},
 
 		// Unicode/Punycode cases (treat literally, no IDNA normalization)
-		{"unicode domain", "bücher.github.com", true},     // Should match wildcard *.github.com
-		{"punycode domain", "xn--bcher-kva.github.com", true}, // Should match wildcard *.github.com
+		{"unicode domain", "bücher.github.com", true},                      // Should match wildcard *.github.com
+		{"punycode domain", "xn--bcher-kva.github.com", true},              // Should match wildcard *.github.com
 		{"unicode vs punycode different domains", "bücher.example", false}, // Not in allowlist
-		{"punycode not in allowlist", "xn--bcher-kva.example", false}, // Not in allowlist
+		{"punycode not in allowlist", "xn--bcher-kva.example", false},      // Not in allowlist
 
 		// Edge cases
 		{"empty string", "", false},
@@ -332,9 +332,9 @@ func TestIsIPAddress(t *testing.T) {
 func containsString(s, substr string) bool {
 	return len(substr) == 0 || (len(s) >= len(substr) &&
 		(s == substr ||
-		 s[:len(substr)] == substr ||
-		 s[len(s)-len(substr):] == substr ||
-		 indexString(s, substr) >= 0))
+			s[:len(substr)] == substr ||
+			s[len(s)-len(substr):] == substr ||
+			indexString(s, substr) >= 0))
 }
 
 func indexString(s, substr string) int {

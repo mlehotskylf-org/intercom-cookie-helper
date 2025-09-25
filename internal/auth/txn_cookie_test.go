@@ -37,11 +37,11 @@ func TestEncodeTxnV1(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "empty key",
-			payload: validPayload,
-			key:  []byte{},
+			name:        "empty key",
+			payload:     validPayload,
+			key:         []byte{},
 			expectError: true,
-			errorMsg: "signing key is required",
+			errorMsg:    "signing key is required",
 		},
 		{
 			name: "wrong version",

@@ -504,9 +504,9 @@ func TestSetAndReadSignedRedirectCookie(t *testing.T) {
 	t.Run("successful set and read", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		opts := CookieOpts{
-			Domain:   ".example.com",
-			Secure:   true,
-			TTL:      30 * time.Minute,
+			Domain: ".example.com",
+			Secure: true,
+			TTL:    30 * time.Minute,
 		}
 
 		// Set cookie

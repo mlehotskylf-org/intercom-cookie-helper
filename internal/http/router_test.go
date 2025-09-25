@@ -15,21 +15,21 @@ import (
 func TestHealthEndpoint(t *testing.T) {
 	// Create a minimal test config
 	cfg := config.Config{
-		Env:         "test",
-		AppHostname: "localhost",
-		Port:        "8080",
-		EnableHSTS:  false,
-		RedirectTTL: 30 * time.Minute,
-		Auth0Domain: "test.auth0.com",
-		Auth0ClientID: "test-client-id",
+		Env:               "test",
+		AppHostname:       "localhost",
+		Port:              "8080",
+		EnableHSTS:        false,
+		RedirectTTL:       30 * time.Minute,
+		Auth0Domain:       "test.auth0.com",
+		Auth0ClientID:     "test-client-id",
 		Auth0ClientSecret: "test-secret",
 		Auth0RedirectPath: "/callback",
-		IntercomAppID: "test-app",
+		IntercomAppID:     "test-app",
 		IntercomJWTSecret: "test-jwt",
-		TxnTTL: 10 * time.Minute,
-		TxnSkew: 1 * time.Minute,
-		SessionTTL:  24 * time.Hour,
-		LogLevel:    "info",
+		TxnTTL:            10 * time.Minute,
+		TxnSkew:           1 * time.Minute,
+		SessionTTL:        24 * time.Hour,
+		LogLevel:          "info",
 	}
 	router := NewRouter(cfg)
 
@@ -76,21 +76,21 @@ func TestHSTSHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.Config{
-				Env:         "test",
-				AppHostname: "localhost",
-				Port:        "8080",
-				EnableHSTS:  tt.enableHSTS,
-				RedirectTTL: 30 * time.Minute,
-		Auth0Domain: "test.auth0.com",
-		Auth0ClientID: "test-client-id",
-		Auth0ClientSecret: "test-secret",
-		Auth0RedirectPath: "/callback",
-		IntercomAppID: "test-app",
-		IntercomJWTSecret: "test-jwt",
-		TxnTTL: 10 * time.Minute,
-		TxnSkew: 1 * time.Minute,
-				SessionTTL:  24 * time.Hour,
-				LogLevel:    "info",
+				Env:               "test",
+				AppHostname:       "localhost",
+				Port:              "8080",
+				EnableHSTS:        tt.enableHSTS,
+				RedirectTTL:       30 * time.Minute,
+				Auth0Domain:       "test.auth0.com",
+				Auth0ClientID:     "test-client-id",
+				Auth0ClientSecret: "test-secret",
+				Auth0RedirectPath: "/callback",
+				IntercomAppID:     "test-app",
+				IntercomJWTSecret: "test-jwt",
+				TxnTTL:            10 * time.Minute,
+				TxnSkew:           1 * time.Minute,
+				SessionTTL:        24 * time.Hour,
+				LogLevel:          "info",
 			}
 			router := NewRouter(cfg)
 

@@ -130,3 +130,23 @@ Multiple layers of security:
 - Structured logging
 - No sensitive data in logs
 - Request IDs for tracing
+- Redacted sensitive values ([REDACTED])
+
+## HTTP Security
+
+### Request Limits
+- 1MB body size limit with `io.LimitReader`
+- Prevents DoS via large payloads
+- Applied to Auth0 API responses
+
+### Timeouts
+- 3-second connection timeout
+- 5-second total request timeout
+- Applied to all external HTTP calls
+- Prevents hanging connections
+
+### OAuth2 Error Mapping
+- Proper handling of Auth0 error codes
+- Maps `invalid_grant`, `invalid_client`, etc.
+- User-friendly error messages
+- Detailed server-side logging
