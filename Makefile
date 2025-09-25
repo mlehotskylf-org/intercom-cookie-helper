@@ -6,7 +6,8 @@ start:
 
 .PHONY: start-bg
 start-bg:
-	@if [ -f .env ]; then set -a && source .env && set +a; fi && nohup go run ./cmd/server > /dev/null 2>&1 &
+	@echo "Starting server with logging to server.log..."
+	@if [ -f .env ]; then set -a && source .env && set +a; fi && nohup go run ./cmd/server >> server.log 2>&1 &
 
 .PHONY: build
 build:
@@ -74,6 +75,28 @@ env-print:
 .PHONY: env-check
 env-check:
 	go run ./cmd/server -check-config
+
+.PHONY: logs
+logs:
+	@if [ -f server.log ]; then \
+		tail -f server.log; \
+	else \
+		echo "No server.log file found. Start the server first."; \
+	fi
+
+.PHONY: logs-clear
+logs-clear:
+	@echo "Clearing server logs..."
+	@> server.log 2>/dev/null || true
+	@echo "Server logs cleared"
+
+.PHONY: logs-tail
+logs-tail:
+	@if [ -f server.log ]; then \
+		tail -n 50 server.log; \
+	else \
+		echo "No server.log file found."; \
+	fi
 
 .PHONY: sanitize
 sanitize:

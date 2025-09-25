@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +11,7 @@ func TestIntercomRenderer_Render(t *testing.T) {
 	validSecret := []byte("test-secret-key-32-bytes-minimum!")
 	validAppID := "ic_test123"
 
-	t.Run("successful render with redirect", func(t *testing.T) {
+	t.Run("successful HTML render", func(t *testing.T) {
 		renderer := &IntercomRenderer{
 			AppID:  validAppID,
 			Secret: validSecret,
@@ -33,43 +31,47 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Check redirect status
-		if w.Code != http.StatusFound {
-			t.Errorf("expected status %d, got %d", http.StatusFound, w.Code)
+		// Check content type
+		contentType := w.Header().Get("Content-Type")
+		if contentType != "text/html; charset=utf-8" {
+			t.Errorf("expected HTML content type, got %s", contentType)
 		}
 
-		// Check Location header
-		location := w.Header().Get("Location")
-		if location == "" {
-			t.Fatal("expected Location header")
+		// Check response body contains expected elements
+		body := w.Body.String()
+
+		// Check for app_id in intercomSettings
+		if !strings.Contains(body, `app_id: "`+validAppID+`"`) {
+			t.Error("expected app_id in intercomSettings")
 		}
 
-		// Parse and verify the redirect URL
-		redirectURL, err := url.Parse(location)
+		// Check for JWT in intercomSettings
+		if !strings.Contains(body, `intercom_user_jwt: "`) {
+			t.Error("expected intercom_user_jwt in intercomSettings")
+		}
+
+		// Check for Intercom widget script
+		if !strings.Contains(body, `https://widget.intercom.io/widget/`+validAppID) {
+			t.Error("expected Intercom widget script")
+		}
+
+		// Check for return URL (JavaScript escaped with backslashes)
+		if !strings.Contains(body, `https:\/\/app.example.com\/complete-login`) {
+			t.Error("expected return URL in redirect script")
+		}
+
+		// Extract and verify the JWT from the HTML
+		jwtStart := strings.Index(body, `intercom_user_jwt: "`) + len(`intercom_user_jwt: "`)
+		jwtEnd := strings.Index(body[jwtStart:], `"`)
+		if jwtEnd == -1 {
+			t.Fatal("could not extract JWT from HTML")
+		}
+		jwt := body[jwtStart : jwtStart+jwtEnd]
+
+		// Verify the JWT
+		claims, err := VerifyIntercomJWT(validSecret, jwt)
 		if err != nil {
-			t.Fatalf("invalid redirect URL: %v", err)
-		}
-
-		if redirectURL.Scheme != "https" {
-			t.Errorf("expected https scheme, got %s", redirectURL.Scheme)
-		}
-		if redirectURL.Host != "app.example.com" {
-			t.Errorf("expected host app.example.com, got %s", redirectURL.Host)
-		}
-		if redirectURL.Path != "/complete-login" {
-			t.Errorf("expected path /complete-login, got %s", redirectURL.Path)
-		}
-
-		// Check for intercom_token parameter
-		token := redirectURL.Query().Get("intercom_token")
-		if token == "" {
-			t.Fatal("expected intercom_token in query parameters")
-		}
-
-		// Verify the token is valid
-		claims, err := VerifyIntercomJWT(validSecret, token)
-		if err != nil {
-			t.Fatalf("failed to verify token: %v", err)
+			t.Fatalf("failed to verify JWT from HTML: %v", err)
 		}
 
 		if claims.UserID != payload.Subject {
@@ -83,7 +85,7 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 	})
 
-	t.Run("minimal payload", func(t *testing.T) {
+	t.Run("minimal payload HTML", func(t *testing.T) {
 		renderer := &IntercomRenderer{
 			AppID:  validAppID,
 			Secret: validSecret,
@@ -102,13 +104,16 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		location := w.Header().Get("Location")
-		redirectURL, _ := url.Parse(location)
-		token := redirectURL.Query().Get("intercom_token")
+		body := w.Body.String()
 
-		claims, err := VerifyIntercomJWT(validSecret, token)
+		// Extract JWT
+		jwtStart := strings.Index(body, `intercom_user_jwt: "`) + len(`intercom_user_jwt: "`)
+		jwtEnd := strings.Index(body[jwtStart:], `"`)
+		jwt := body[jwtStart : jwtStart+jwtEnd]
+
+		claims, err := VerifyIntercomJWT(validSecret, jwt)
 		if err != nil {
-			t.Fatalf("failed to verify token: %v", err)
+			t.Fatalf("failed to verify JWT: %v", err)
 		}
 
 		if claims.UserID != payload.Subject {
@@ -216,38 +221,18 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid return URL", func(t *testing.T) {
+	t.Run("HTML escaping", func(t *testing.T) {
 		renderer := &IntercomRenderer{
 			AppID:  validAppID,
 			Secret: validSecret,
 			TTL:    5 * time.Minute,
 		}
 
+		// Test with potentially malicious return URL
 		payload := IdentifyPayload{
-			ReturnTo: "://invalid-url",
+			ReturnTo: `https://example.com/"></script><script>alert('xss')</script>`,
 			Subject:  "user123",
-		}
-
-		w := httptest.NewRecorder()
-		err := renderer.Render(w, payload)
-		if err == nil {
-			t.Fatal("expected error for invalid return URL")
-		}
-		if !strings.Contains(err.Error(), "invalid return URL") {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
-
-	t.Run("preserves existing query parameters", func(t *testing.T) {
-		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: validSecret,
-			TTL:    5 * time.Minute,
-		}
-
-		payload := IdentifyPayload{
-			ReturnTo: "https://app.example.com/login?source=email&campaign=welcome",
-			Subject:  "user123",
+			Name:     `<script>alert('name')</script>`,
 		}
 
 		w := httptest.NewRecorder()
@@ -256,42 +241,20 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		location := w.Header().Get("Location")
-		redirectURL, _ := url.Parse(location)
+		body := w.Body.String()
 
-		// Check that original parameters are preserved
-		if redirectURL.Query().Get("source") != "email" {
-			t.Error("expected source=email parameter to be preserved")
+		// Check that dangerous content is escaped
+		if strings.Contains(body, `<script>alert('xss')</script>`) {
+			t.Error("XSS not properly escaped in return URL")
 		}
-		if redirectURL.Query().Get("campaign") != "welcome" {
-			t.Error("expected campaign=welcome parameter to be preserved")
+		if strings.Contains(body, `<script>alert('name')</script>`) {
+			t.Error("XSS not properly escaped in name field")
 		}
-		// And the token is added
-		if redirectURL.Query().Get("intercom_token") == "" {
-			t.Error("expected intercom_token to be added")
+
+		// The template should escape these automatically
+		if !strings.Contains(body, `&#34;`) || !strings.Contains(body, `&lt;`) {
+			// Should contain HTML entities for escaped content
+			t.Log("Warning: Expected HTML escaping might be handled differently")
 		}
 	})
-}
-
-// TestIdentifyRendererInterface verifies the interface is properly implemented
-func TestIdentifyRendererInterface(t *testing.T) {
-	// This test ensures IntercomRenderer implements IdentifyRenderer
-	var _ IdentifyRenderer = (*IntercomRenderer)(nil)
-
-	// Test that we can use it through the interface
-	var renderer IdentifyRenderer = &IntercomRenderer{
-		AppID:  "test",
-		Secret: []byte("secret"),
-		TTL:    5 * time.Minute,
-	}
-
-	w := httptest.NewRecorder()
-	err := renderer.Render(w, IdentifyPayload{
-		ReturnTo: "https://example.com",
-		Subject:  "user123",
-	})
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 }

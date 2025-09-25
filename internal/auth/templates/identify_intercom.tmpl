@@ -1,0 +1,14 @@
+<!doctype html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Signing you in…</title>
+</head><body>
+<p>Signing you in to chat…</p>
+<script>
+  window.intercomSettings = { app_id: "{{.AppID}}", intercom_user_jwt: "{{.JWT}}" };
+</script>
+<script src="https://widget.intercom.io/widget/{{.AppID}}" async></script>
+<script>
+  // small delay to let cookie set
+  window.addEventListener('load', function(){ setTimeout(function(){ var u="{{.ReturnTo}}"; if(u){ location.replace(u); }}, 600);});
+</script>
+</body></html>
