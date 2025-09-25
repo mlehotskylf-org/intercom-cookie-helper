@@ -54,10 +54,10 @@ func NewRouter(cfg config.Config) http.Handler {
 	r.Get("/healthz", healthzHandler)
 
 	// Login endpoint with referrer validation
-	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get("/login", loginHandler(sanitizer))
+	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get(RouteLogin, loginHandler(sanitizer))
 
 	// Callback endpoint - OAuth2 callback handler
-	r.Get("/callback", handleCallback)
+	r.Get(RouteCallback, handleCallback)
 
 	// Debug endpoint (only in non-prod environments)
 	if cfg.Env != "prod" {
@@ -95,7 +95,7 @@ func GetConfigFromContext(ctx context.Context) (config.Config, bool) {
 }
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -127,7 +127,7 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 
 		// Extract referrer host for cookie payload
 		referrerHost := ""
-		if referer := r.Header.Get("Referer"); referer != "" {
+		if referer := r.Header.Get(HeaderReferer); referer != "" {
 			if refURL, err := url.Parse(referer); err == nil {
 				referrerHost = strings.ToLower(refURL.Host)
 			}
@@ -186,7 +186,7 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 // Reads and validates the signed redirect cookie, returning its contents.
 // This endpoint is disabled in production environments for security.
 func debugRedirectCookieHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())

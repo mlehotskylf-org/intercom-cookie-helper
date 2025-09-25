@@ -48,7 +48,7 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 
 // writeReferrerError writes a 400 JSON error response
 func writeReferrerError(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.WriteHeader(http.StatusBadRequest)
 
 	response := map[string]string{

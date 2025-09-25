@@ -17,7 +17,7 @@ type ErrorResponse struct {
 func WriteClientError(w http.ResponseWriter, logMessage string) {
 	log.Printf("Client error: %s", logMessage)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.WriteHeader(http.StatusBadRequest)
 
 	resp := ErrorResponse{
@@ -32,7 +32,7 @@ func WriteClientError(w http.ResponseWriter, logMessage string) {
 func WriteServerError(w http.ResponseWriter, logMessage string) {
 	log.Printf("Server error: %s", logMessage)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.WriteHeader(http.StatusInternalServerError)
 
 	resp := ErrorResponse{
@@ -49,7 +49,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, code, message string)
 	// Log the actual error for debugging
 	log.Printf("Error response [%d %s]: %s", statusCode, code, message)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.WriteHeader(statusCode)
 
 	// For backwards compatibility with tests, maintain old response format

@@ -63,7 +63,7 @@ func ExchangeCode(ctx context.Context, domain, clientID, clientSecret, redirectU
 		return nil, fmt.Errorf("creating token request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set(HeaderContentType, ContentTypeFormURLEncoded)
 
 	// Execute request with timeout
 	client := &http.Client{

@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -42,7 +41,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())
 	if !ok {
-		renderErrorPage(w, r, "Configuration not available", cfg)
+		renderErrorPage(w, r, ErrorMsgConfigUnavailable, cfg)
 		return
 	}
 
@@ -67,7 +66,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	if code == "" || state == "" {
 		log.Printf("Callback invalid - missing required parameters (code_present: %v, state_present: %v)",
 			code != "", state != "")
-		renderErrorPage(w, r, "Missing required authentication parameters.", cfg)
+		renderErrorPage(w, r, ErrorMsgMissingParams, cfg)
 		return
 	}
 
@@ -86,14 +85,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	txn, err := auth.ReadTxnCookie(r, txnOpts)
 	if err != nil {
 		log.Printf("Failed to read transaction cookie: %v", err)
-		renderErrorPage(w, r, "Your session has expired. Please try again.", cfg)
+		renderErrorPage(w, r, ErrorMsgSessionExpired, cfg)
 		return
 	}
 
 	// Step 3: Validate state parameter (constant-time comparison)
 	if subtle.ConstantTimeCompare([]byte(state), []byte(txn.State)) != 1 {
 		log.Printf("State mismatch - expected: %s, got: %s", txn.State, state)
-		renderErrorPage(w, r, "Security validation failed. Please try again.", cfg)
+		renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 		return
 	}
 
@@ -101,7 +100,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Guard against misconfiguration
 	if !strings.HasPrefix(cfg.Auth0RedirectPath, "/") {
 		log.Printf("Configuration error: Auth0RedirectPath must start with '/', got: %s", cfg.Auth0RedirectPath)
-		renderErrorPage(w, r, "Server configuration error.", cfg)
+		renderErrorPage(w, r, ErrorMsgServerConfig, cfg)
 		return
 	}
 
@@ -134,7 +133,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		log.Printf("Token exchange failed: %v", err)
-		renderErrorPage(w, r, "Authentication failed. Please try again.", cfg)
+		renderErrorPage(w, r, ErrorMsgAuthFailed, cfg)
 		return
 	}
 
@@ -157,7 +156,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("Failed to extract nonce from ID token: %v", err)
 			// Require valid nonce extraction as security policy
-			renderErrorPage(w, r, "Token validation failed. Please try again.", cfg)
+			renderErrorPage(w, r, ErrorMsgTokenValidation, cfg)
 			return
 		}
 
@@ -165,7 +164,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		if idTokenNonce != "" && txn.Nonce != "" {
 			if subtle.ConstantTimeCompare([]byte(idTokenNonce), []byte(txn.Nonce)) != 1 {
 				log.Printf("Nonce mismatch - expected: %s, got: %s", txn.Nonce, idTokenNonce)
-				renderErrorPage(w, r, "Security validation failed. Please try again.", cfg)
+				renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 				return
 			}
 			log.Printf("Nonce verification successful")
@@ -173,7 +172,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 			// One nonce is present but not the other - this is a mismatch
 			log.Printf("Nonce presence mismatch - txn_nonce_present: %v, id_token_nonce_present: %v",
 				txn.Nonce != "", idTokenNonce != "")
-			renderErrorPage(w, r, "Security validation failed. Please try again.", cfg)
+			renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 			return
 		}
 	}
@@ -182,14 +181,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	userInfo, err := auth.FetchUserInfo(r.Context(), cfg.Auth0Domain, accessToken)
 	if err != nil {
 		log.Printf("Failed to fetch user info: %v", err)
-		renderErrorPage(w, r, "Unable to fetch user information. Please try again.", cfg)
+		renderErrorPage(w, r, ErrorMsgUserInfoFetch, cfg)
 		return
 	}
 
 	// Validate that we have a subject identifier
 	if userInfo.Sub == "" {
 		log.Printf("User info missing required subject identifier")
-		renderErrorPage(w, r, "User information incomplete. Please try again.", cfg)
+		renderErrorPage(w, r, ErrorMsgUserInfoIncomplete, cfg)
 		return
 	}
 
@@ -234,15 +233,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// TODO: Redirect to Intercom with JWT
 
 	// For now, render the success template with auth context
-	tmplPath := filepath.Join("web", "callback-ok.tmpl")
-	tmpl, err := template.ParseFiles(tmplPath)
+	tmpl, err := template.ParseFiles(TemplateCallbackSuccess)
 	if err != nil {
 		log.Printf("Failed to parse template: %v", err)
-		renderErrorPage(w, r, "Failed to load success page.", cfg)
+		renderErrorPage(w, r, ErrorMsgLoadTemplate, cfg)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set(HeaderContentType, ContentTypeHTML)
 	if err := tmpl.Execute(w, authCtx); err != nil {
 		log.Printf("Failed to execute template: %v", err)
 		// Don't write error response since headers may have been sent
@@ -253,7 +251,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 // writeCallbackError writes a standardized JSON error response for callback failures.
 // It ensures consistent error formatting and prevents information leakage.
 func writeCallbackError(w http.ResponseWriter, statusCode int, errorCode, errorMessage string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.WriteHeader(statusCode)
 
 	response := map[string]string{"error": errorCode}
@@ -285,8 +283,7 @@ func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string
 	}
 
 	// Parse and render the error template
-	tmplPath := filepath.Join("web", "error.tmpl")
-	tmpl, err := template.ParseFiles(tmplPath)
+	tmpl, err := template.ParseFiles(TemplateError)
 	if err != nil {
 		log.Printf("Failed to parse error template: %v", err)
 		// Fall back to JSON error if template fails
@@ -294,7 +291,7 @@ func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set(HeaderContentType, ContentTypeHTML)
 	w.WriteHeader(http.StatusBadRequest)
 	if err := tmpl.Execute(w, errorCtx); err != nil {
 		log.Printf("Failed to execute error template: %v", err)
