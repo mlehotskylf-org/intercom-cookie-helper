@@ -5,14 +5,17 @@ package httpx
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/config"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
@@ -25,6 +28,12 @@ type AuthContext struct {
 	ReturnTo string // Sanitized URL to redirect the user to
 }
 
+// ErrorContext holds data for rendering the error template.
+type ErrorContext struct {
+	ErrorMessage string // Human-readable error message
+	TryAgainURL  string // URL for retry button
+}
+
 // handleCallback processes the OAuth2 callback from Auth0 after user authentication.
 // It validates the transaction cookie, verifies the state parameter, exchanges the
 // authorization code for tokens using PKCE, and validates the nonce in the ID token.
@@ -33,7 +42,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())
 	if !ok {
-		writeCallbackError(w, http.StatusInternalServerError, "internal_error", "Configuration not available")
+		renderErrorPage(w, r, "Configuration not available", cfg)
 		return
 	}
 
@@ -46,7 +55,11 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Log callback parameters (without sensitive code value)
 	if errorParam != "" {
 		log.Printf("Callback error - error: %s, description: %s", errorParam, errorDesc)
-		writeCallbackError(w, http.StatusBadRequest, errorParam, errorDesc)
+		errorMessage := "Authentication was cancelled or failed."
+		if errorDesc != "" {
+			errorMessage = errorDesc
+		}
+		renderErrorPage(w, r, errorMessage, cfg)
 		return
 	}
 
@@ -54,7 +67,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	if code == "" || state == "" {
 		log.Printf("Callback invalid - missing required parameters (code_present: %v, state_present: %v)",
 			code != "", state != "")
-		writeCallbackError(w, http.StatusBadRequest, "invalid_request", "Missing required parameters")
+		renderErrorPage(w, r, "Missing required authentication parameters.", cfg)
 		return
 	}
 
@@ -73,14 +86,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	txn, err := auth.ReadTxnCookie(r, txnOpts)
 	if err != nil {
 		log.Printf("Failed to read transaction cookie: %v", err)
-		writeCallbackError(w, http.StatusBadRequest, "invalid_request", "Invalid or expired transaction")
+		renderErrorPage(w, r, "Your session has expired. Please try again.", cfg)
 		return
 	}
 
 	// Step 3: Validate state parameter (constant-time comparison)
 	if subtle.ConstantTimeCompare([]byte(state), []byte(txn.State)) != 1 {
 		log.Printf("State mismatch - expected: %s, got: %s", txn.State, state)
-		writeCallbackError(w, http.StatusBadRequest, "invalid_request", "State parameter mismatch")
+		renderErrorPage(w, r, "Security validation failed. Please try again.", cfg)
 		return
 	}
 
@@ -88,7 +101,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Guard against misconfiguration
 	if !strings.HasPrefix(cfg.Auth0RedirectPath, "/") {
 		log.Printf("Configuration error: Auth0RedirectPath must start with '/', got: %s", cfg.Auth0RedirectPath)
-		writeCallbackError(w, http.StatusInternalServerError, "internal_error", "Server misconfiguration")
+		renderErrorPage(w, r, "Server configuration error.", cfg)
 		return
 	}
 
@@ -121,7 +134,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		log.Printf("Token exchange failed: %v", err)
-		writeCallbackError(w, http.StatusBadRequest, "invalid_grant", "")
+		renderErrorPage(w, r, "Authentication failed. Please try again.", cfg)
 		return
 	}
 
@@ -132,7 +145,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Verify we have the required tokens
 	if accessToken == "" {
 		log.Printf("Token exchange succeeded but access_token is missing")
-		writeCallbackError(w, http.StatusBadRequest, "invalid_grant", "")
+		renderErrorPage(w, r, "Authentication incomplete. Please try again.", cfg)
 		return
 	}
 
@@ -144,7 +157,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("Failed to extract nonce from ID token: %v", err)
 			// Require valid nonce extraction as security policy
-			writeCallbackError(w, http.StatusBadRequest, "invalid_request", "")
+			renderErrorPage(w, r, "Token validation failed. Please try again.", cfg)
 			return
 		}
 
@@ -152,7 +165,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		if idTokenNonce != "" && txn.Nonce != "" {
 			if subtle.ConstantTimeCompare([]byte(idTokenNonce), []byte(txn.Nonce)) != 1 {
 				log.Printf("Nonce mismatch - expected: %s, got: %s", txn.Nonce, idTokenNonce)
-				writeCallbackError(w, http.StatusBadRequest, "invalid_request", "")
+				renderErrorPage(w, r, "Security validation failed. Please try again.", cfg)
 				return
 			}
 			log.Printf("Nonce verification successful")
@@ -160,7 +173,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 			// One nonce is present but not the other - this is a mismatch
 			log.Printf("Nonce presence mismatch - txn_nonce_present: %v, id_token_nonce_present: %v",
 				txn.Nonce != "", idTokenNonce != "")
-			writeCallbackError(w, http.StatusBadRequest, "invalid_request", "")
+			renderErrorPage(w, r, "Security validation failed. Please try again.", cfg)
 			return
 		}
 	}
@@ -169,14 +182,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	userInfo, err := auth.FetchUserInfo(r.Context(), cfg.Auth0Domain, accessToken)
 	if err != nil {
 		log.Printf("Failed to fetch user info: %v", err)
-		writeCallbackError(w, http.StatusBadRequest, "invalid_token", "")
+		renderErrorPage(w, r, "Unable to fetch user information. Please try again.", cfg)
 		return
 	}
 
 	// Validate that we have a subject identifier
 	if userInfo.Sub == "" {
 		log.Printf("User info missing required subject identifier")
-		writeCallbackError(w, http.StatusBadRequest, "invalid_token", "")
+		renderErrorPage(w, r, "User information incomplete. Please try again.", cfg)
 		return
 	}
 
@@ -225,7 +238,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFiles(tmplPath)
 	if err != nil {
 		log.Printf("Failed to parse template: %v", err)
-		writeCallbackError(w, http.StatusInternalServerError, "internal_error", "Failed to load success page")
+		renderErrorPage(w, r, "Failed to load success page.", cfg)
 		return
 	}
 
@@ -249,4 +262,42 @@ func writeCallbackError(w http.ResponseWriter, statusCode int, errorCode, errorM
 	}
 
 	json.NewEncoder(w).Encode(response)
+}
+
+// renderErrorPage renders a user-friendly HTML error page for authentication failures.
+// It provides a "Try again" link that goes back to the login page with a safe default return URL.
+func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string, cfg config.Config) {
+	// Build a safe default return URL
+	var defaultReturnURL string
+	if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
+		defaultReturnURL = fmt.Sprintf("http://%s:%s/", cfg.AppHostname, cfg.Port)
+	} else {
+		defaultReturnURL = fmt.Sprintf("https://%s/", cfg.AppHostname)
+	}
+
+	// Build the "Try again" URL with encoded return_to parameter
+	tryAgainURL := fmt.Sprintf("/login?return_to=%s", url.QueryEscape(defaultReturnURL))
+
+	// Create error context
+	errorCtx := ErrorContext{
+		ErrorMessage: errorMessage,
+		TryAgainURL:  tryAgainURL,
+	}
+
+	// Parse and render the error template
+	tmplPath := filepath.Join("web", "error.tmpl")
+	tmpl, err := template.ParseFiles(tmplPath)
+	if err != nil {
+		log.Printf("Failed to parse error template: %v", err)
+		// Fall back to JSON error if template fails
+		writeCallbackError(w, http.StatusInternalServerError, "internal_error", "Failed to display error page")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusBadRequest)
+	if err := tmpl.Execute(w, errorCtx); err != nil {
+		log.Printf("Failed to execute error template: %v", err)
+		// Don't write another response since headers may have been sent
+	}
 }

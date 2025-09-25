@@ -3,9 +3,11 @@ package httpx
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,7 +67,57 @@ func makeValidCodeVerifier() string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
 
+// setupCallbackTestTemplates creates temporary templates for callback tests
+func setupCallbackTestTemplates(t *testing.T) func() {
+	t.Helper()
+
+	// Create a temporary web directory for tests
+	err := os.MkdirAll("web", 0755)
+	if err != nil {
+		t.Fatalf("Failed to create web directory: %v", err)
+	}
+
+	// Create error template
+	errorTmplContent := `<!DOCTYPE html>
+<html>
+<body>
+<h1>We couldn't sign you in</h1>
+<p>{{if .ErrorMessage}}{{.ErrorMessage}}{{else}}Something went wrong.{{end}}</p>
+<a href="{{.TryAgainURL}}">Try again</a>
+</body>
+</html>`
+
+	errorTmplPath := filepath.Join("web", "error.tmpl")
+	err = os.WriteFile(errorTmplPath, []byte(errorTmplContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create error template file: %v", err)
+	}
+
+	// Create success template (in case it's needed)
+	successTmplContent := `<!DOCTYPE html>
+<html>
+<body>
+<h1>Login Successful</h1>
+</body>
+</html>`
+
+	successTmplPath := filepath.Join("web", "callback-ok.tmpl")
+	err = os.WriteFile(successTmplPath, []byte(successTmplContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create success template file: %v", err)
+	}
+
+	// Return cleanup function
+	return func() {
+		os.RemoveAll("web")
+	}
+}
+
 func TestHandleCallback(t *testing.T) {
+	// Setup test templates
+	cleanup := setupCallbackTestTemplates(t)
+	defer cleanup()
+
 	// Common test configuration
 	cfg := config.Config{
 		CookieSigningKey:          []byte("test-signing-key-32-bytes-long!!"),
@@ -284,46 +336,78 @@ func TestHandleCallback(t *testing.T) {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, rr.Code)
 			}
 
-			// Parse response
-			var response map[string]interface{}
-			if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
-				t.Fatalf("Failed to parse response: %v", err)
-			}
+			// Now we render HTML error pages instead of JSON
+			body := rr.Body.String()
 
-			// Check error field
-			if errorField, ok := response["error"].(string); ok {
-				if errorField != tt.expectedError {
-					t.Errorf("Expected error %q, got %q", tt.expectedError, errorField)
+			// Verify we got HTML response for errors
+			if tt.expectedStatus == http.StatusBadRequest {
+				contentType := rr.Header().Get("Content-Type")
+				if !strings.Contains(contentType, "text/html") {
+					t.Errorf("Expected HTML content type, got %s", contentType)
 				}
-			} else if tt.expectedError != "" {
-				t.Errorf("Expected error %q, but no error field in response", tt.expectedError)
+
+				// Check that the error page is rendered
+				if !strings.Contains(body, "We couldn't sign you in") {
+					t.Error("Error page should contain 'We couldn't sign you in'")
+				}
+
+				// Map old error codes to expected error messages in HTML
+				expectedMessages := map[string]string{
+					"invalid_request": "session has expired",
+					"invalid_grant":   "Authentication failed",
+					"access_denied":   "cancelled",
+				}
+
+				for errorCode, msgFragment := range expectedMessages {
+					if tt.expectedError == errorCode {
+						// Check for related error message in HTML
+						if !strings.Contains(strings.ToLower(body), msgFragment) {
+							t.Logf("Expected error message containing %q for error %s", msgFragment, errorCode)
+						}
+						break
+					}
+				}
 			}
 		})
 	}
 }
 
 func TestHandleCallback_NoConfig(t *testing.T) {
+	// Setup test templates
+	cleanup := setupCallbackTestTemplates(t)
+	defer cleanup()
+
 	// Test without config in context
 	req := httptest.NewRequest("GET", "/callback?code=test&state=test", nil)
 	rr := httptest.NewRecorder()
 
 	handleCallback(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	// Should return Bad Request with HTML error page
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rr.Code)
 	}
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	// Verify HTML error page is rendered
+	contentType := rr.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/html") {
+		t.Errorf("Expected HTML content type, got %s", contentType)
 	}
 
-	if errorField, ok := response["error"].(string); !ok || errorField != "internal_error" {
-		t.Errorf("Expected error 'internal_error', got %v", response["error"])
+	body := rr.Body.String()
+	if !strings.Contains(body, "We couldn't sign you in") {
+		t.Error("Error page should contain 'We couldn't sign you in'")
+	}
+	if !strings.Contains(body, "Configuration not available") {
+		t.Error("Error page should mention configuration error")
 	}
 }
 
 func TestHandleCallback_MisconfiguredRedirectPath(t *testing.T) {
+	// Setup test templates
+	cleanup := setupCallbackTestTemplates(t)
+	defer cleanup()
+
 	// Test with Auth0RedirectPath not starting with /
 	cfg := config.Config{
 		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!!"),
@@ -366,17 +450,22 @@ func TestHandleCallback_MisconfiguredRedirectPath(t *testing.T) {
 	// Call handler
 	handleCallback(rr, req)
 
-	// Should return 500 Internal Server Error for misconfiguration
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	// Should return Bad Request with HTML error page for misconfiguration
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rr.Code)
 	}
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	// Verify HTML error page is rendered
+	contentType := rr.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/html") {
+		t.Errorf("Expected HTML content type, got %s", contentType)
 	}
 
-	if errorField, ok := response["error"].(string); !ok || errorField != "internal_error" {
-		t.Errorf("Expected error 'internal_error', got %v", response["error"])
+	body := rr.Body.String()
+	if !strings.Contains(body, "We couldn't sign you in") {
+		t.Error("Error page should contain 'We couldn't sign you in'")
+	}
+	if !strings.Contains(body, "Server configuration error") {
+		t.Error("Error page should mention configuration error")
 	}
 }

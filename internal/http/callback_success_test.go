@@ -23,8 +23,8 @@ func setupTestTemplate(t *testing.T) func() {
 		t.Fatalf("Failed to create web directory: %v", err)
 	}
 
-	// Create a simple test template
-	tmplContent := `<!DOCTYPE html>
+	// Create success template
+	successTmplContent := `<!DOCTYPE html>
 <html>
 <body>
 <h1>Login Successful</h1>
@@ -35,10 +35,26 @@ func setupTestTemplate(t *testing.T) func() {
 </body>
 </html>`
 
-	tmplPath := filepath.Join("web", "callback-ok.tmpl")
-	err = os.WriteFile(tmplPath, []byte(tmplContent), 0644)
+	successTmplPath := filepath.Join("web", "callback-ok.tmpl")
+	err = os.WriteFile(successTmplPath, []byte(successTmplContent), 0644)
 	if err != nil {
-		t.Fatalf("Failed to create template file: %v", err)
+		t.Fatalf("Failed to create success template file: %v", err)
+	}
+
+	// Create error template
+	errorTmplContent := `<!DOCTYPE html>
+<html>
+<body>
+<h1>We couldn't sign you in</h1>
+<p>{{if .ErrorMessage}}{{.ErrorMessage}}{{else}}Something went wrong during authentication.{{end}}</p>
+<a href="{{.TryAgainURL}}">Try again</a>
+</body>
+</html>`
+
+	errorTmplPath := filepath.Join("web", "error.tmpl")
+	err = os.WriteFile(errorTmplPath, []byte(errorTmplContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create error template file: %v", err)
 	}
 
 	// Return cleanup function
