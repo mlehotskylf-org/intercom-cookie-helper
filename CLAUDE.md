@@ -42,8 +42,13 @@ make fmt-strict     # Format with gofumpt + gofmt
 - ✅ Integration tests with mock Auth0 server
 - ✅ Security hardening (timeouts, body limits, log redaction)
 - ✅ Constants refactoring (no magic strings)
-- 🚧 Intercom JWT generation
-- 🚧 Final redirect to Intercom
+- ✅ Intercom JWT generation (`internal/auth/intercom_jwt.go`)
+- ✅ Vendor-neutral adapter (`internal/auth/adapter.go`)
+- ✅ IntercomRenderer with HTML template (`internal/auth/intercom_renderer.go`)
+- ✅ Embedded templates for production deployment
+- ✅ Server logging to `server.log`
+- 🚧 Wire up IntercomRenderer in callback handler
+- 🚧 End-to-end testing with real Intercom
 
 ## Testing
 ```bash

@@ -229,8 +229,33 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		ReturnTo: returnTo,
 	}
 
-	// TODO: Create Intercom JWT with user attributes using authCtx
-	// TODO: Redirect to Intercom with JWT
+	// TODO: Complete Intercom integration
+	// 1. Create IntercomRenderer with AppID, Secret, TTL from config
+	// 2. Call renderer.Render() with IdentifyPayload:
+	//    - ReturnTo: authCtx.ReturnTo
+	//    - Subject: authCtx.Sub
+	//    - Email: authCtx.Email
+	//    - Name: authCtx.Name
+	// 3. Remove the success template rendering below
+	//
+	// Example:
+	// renderer := &auth.IntercomRenderer{
+	//     AppID:  cfg.IntercomAppID,
+	//     Secret: []byte(cfg.IntercomJWTSecret),
+	//     TTL:    10 * time.Minute,
+	// }
+	// payload := auth.IdentifyPayload{
+	//     ReturnTo: authCtx.ReturnTo,
+	//     Subject:  authCtx.Sub,
+	//     Email:    authCtx.Email,
+	//     Name:     authCtx.Name,
+	// }
+	// if err := renderer.Render(w, payload); err != nil {
+	//     log.Printf("Failed to render Intercom response: %v", err)
+	//     renderErrorPage(w, r, "Failed to complete authentication", cfg)
+	//     return
+	// }
+	// return // Important: return here to avoid rendering success template
 
 	// For now, render the success template with auth context
 	w.Header().Set(HeaderContentType, ContentTypeHTML)

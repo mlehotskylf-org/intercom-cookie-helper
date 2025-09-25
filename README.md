@@ -49,6 +49,41 @@ The server starts on port 8080 (or `PORT` if set).
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration guide.
 
+## Implementation Status
+
+### ✅ Completed
+- OAuth2/OIDC authentication flow with Auth0
+- PKCE (Proof Key for Code Exchange) implementation
+- Nonce validation for security
+- User info retrieval from Auth0
+- Secure cookie management with HMAC signing
+- URL sanitization and validation
+- HSTS header support for production
+- Intercom JWT generation (`MintIntercomJWT`)
+- Vendor-neutral adapter pattern (`IdentifyRenderer`)
+- HTML template for Intercom Messenger integration
+- Server logging to `server.log` file
+
+### 🚧 TODO - Final Integration
+The authentication flow works but needs the final step to complete Intercom integration:
+
+1. **Wire up IntercomRenderer in callback handler** (`internal/http/callback.go`)
+   - Replace the success template with `IntercomRenderer`
+   - Pass user info to generate JWT
+   - Render HTML that loads Intercom Messenger and redirects
+
+2. **Configure Intercom settings**
+   - Ensure `INTERCOM_APP_ID` is set correctly in production
+   - Ensure `INTERCOM_JWT_SECRET` is properly configured
+
+3. **Test end-to-end flow**
+   - Verify JWT is generated with correct user data
+   - Confirm Intercom Messenger loads with user context
+   - Validate automatic redirect to `return_to` URL
+
+Once these steps are complete, the flow will be:
+1. User clicks login → 2. Auth0 authentication → 3. Generate Intercom JWT → 4. Load Messenger → 5. Redirect to app
+
 ## Development
 
 ```bash
