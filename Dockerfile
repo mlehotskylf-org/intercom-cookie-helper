@@ -20,6 +20,9 @@ FROM gcr.io/distroless/static:nonroot
 # Copy binary from builder
 COPY --from=builder /server /server
 
+# Copy web templates
+COPY --from=builder /app/web /web
+
 # Set user
 USER nonroot:nonroot
 
