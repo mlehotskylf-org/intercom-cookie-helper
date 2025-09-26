@@ -41,7 +41,10 @@ type Config struct {
 	IntercomAppID string
 
 	// Intercom JWT secret - dev only, prod uses secret manager
-	IntercomJWTSecret string
+	IntercomJWTSecret []byte
+
+	// Intercom JWT TTL - how long the JWT is valid (default 10m, bounds: 5m-30m)
+	IntercomJWTTTL time.Duration
 
 	// Auth0 configuration
 	Auth0Domain       string
@@ -124,7 +127,23 @@ func FromEnv() (Config, error) {
 
 	// Intercom settings
 	cfg.IntercomAppID = getEnv("INTERCOM_APP_ID", "")
-	cfg.IntercomJWTSecret = getEnv("INTERCOM_JWT_SECRET", "")
+
+	// Parse JWT secret as base64 or hex
+	if secret := getEnv("INTERCOM_JWT_SECRET", ""); secret != "" {
+		if decoded, err := decodeKey(secret); err == nil {
+			cfg.IntercomJWTSecret = decoded
+		} else {
+			// Fall back to using raw string bytes for backward compatibility
+			cfg.IntercomJWTSecret = []byte(secret)
+		}
+	}
+
+	// Parse JWT TTL with default of 10 minutes
+	var err error
+	cfg.IntercomJWTTTL, err = parseDuration("INTERCOM_JWT_TTL", "10m")
+	if err != nil {
+		return cfg, err
+	}
 
 	// Auth0 settings
 	cfg.Auth0Domain = getEnv("AUTH0_DOMAIN", "")
@@ -151,7 +170,6 @@ func FromEnv() (Config, error) {
 	}
 
 	// Parse durations with defaults
-	var err error
 	cfg.RedirectTTL, err = parseDuration("REDIRECT_TTL", "30m")
 	if err != nil {
 		return cfg, err
@@ -233,6 +251,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("INTERCOM_APP_ID is required (get from your Intercom app settings)")
 	}
 
+	// Validate Intercom JWT TTL bounds (5-30 minutes)
+	if c.IntercomJWTTTL < 5*time.Minute || c.IntercomJWTTTL > 30*time.Minute {
+		return fmt.Errorf("INTERCOM_JWT_TTL must be between 5m and 30m, got %v", c.IntercomJWTTTL)
+	}
+
 	if c.Auth0Domain == "" {
 		return fmt.Errorf("AUTH0_DOMAIN is required (set to your Auth0 tenant domain, e.g., your-tenant.auth0.com)")
 	}
@@ -279,7 +302,7 @@ func (c *Config) Validate() error {
 
 	// Production-only constraints
 	if c.Env == "prod" {
-		if c.IntercomJWTSecret != "" {
+		if len(c.IntercomJWTSecret) > 0 {
 			return fmt.Errorf("in prod, INTERCOM_JWT_SECRET must be unset (use secret manager instead)")
 		}
 		if c.Auth0ClientSecret != "" {
@@ -287,7 +310,7 @@ func (c *Config) Validate() error {
 		}
 	} else {
 		// In dev/staging, these are required
-		if c.IntercomJWTSecret == "" {
+		if len(c.IntercomJWTSecret) == 0 {
 			return fmt.Errorf("INTERCOM_JWT_SECRET is required in %s environment (set a test secret or get from Intercom)", c.Env)
 		}
 		if c.Auth0ClientSecret == "" {
@@ -478,5 +501,14 @@ func (c Config) TxnCookieOpts() auth.TxnOpts {
 		Secure:       c.Env == "prod",
 		SigningKey:   c.CookieSigningKey,
 		SecondaryKey: c.SecondaryTxnSigningKey,
+	}
+}
+
+// IntercomRenderer creates an IntercomRenderer from the configuration
+func (c Config) IntercomRenderer() *auth.IntercomRenderer {
+	return &auth.IntercomRenderer{
+		AppID:  c.IntercomAppID,
+		Secret: c.IntercomJWTSecret,
+		TTL:    c.IntercomJWTTTL,
 	}
 }

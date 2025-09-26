@@ -116,8 +116,10 @@ func TestHandleCallbackSuccess_TransactionCookieCleared(t *testing.T) {
 		TxnSkew:                   5 * time.Minute,
 		TxnTTL:                    10 * time.Minute,
 		RedirectSkew:              5 * time.Minute,
-		CookieDomain:              ".example.com",
 		IntercomAppID:             "test-app-id",
+		IntercomJWTSecret:         []byte("test-jwt-secret"),
+		IntercomJWTTTL:            10 * time.Minute,
+		CookieDomain:              ".example.com",
 		Env:                       "dev",
 		AppHostname:               "example.com",
 		Auth0RedirectPath:         "/callback",
@@ -169,22 +171,26 @@ func TestHandleCallbackSuccess_TransactionCookieCleared(t *testing.T) {
 		t.Errorf("Expected HTML content type, got %s", contentType)
 	}
 
-	// Check the HTML response contains expected values
+	// Check the HTML response contains Intercom identify page
 	body := rr.Body.String()
-	if !strings.Contains(body, "Login Successful") {
-		t.Error("Response should contain 'Login Successful'")
+	t.Logf("Response body (first 500 chars): %.500s", body)
+	if !strings.Contains(body, "intercom_user_jwt") {
+		t.Error("Response should contain 'intercom_user_jwt'")
 	}
-	if !strings.Contains(body, "auth0|user123") {
-		t.Error("Response should contain the user ID")
+	if !strings.Contains(body, "Signing you in to chat") {
+		t.Error("Response should contain Intercom identify page title")
 	}
-	if !strings.Contains(body, "test@example.com") {
-		t.Error("Response should contain the email")
+	// The user data is embedded in the JWT, not displayed as plain text
+	// Just check that we have the Intercom setup script
+	if !strings.Contains(body, "window.intercomSettings") {
+		t.Error("Response should contain Intercom initialization script")
 	}
-	if !strings.Contains(body, "Test User") {
-		t.Error("Response should contain the name")
+	if !strings.Contains(body, "test-app-id") {
+		t.Error("Response should contain the Intercom app ID")
 	}
-	if !strings.Contains(body, "https://example.com/original") {
-		t.Error("Response should contain the return URL")
+	// Check redirect is set up
+	if !strings.Contains(body, "location.replace") {
+		t.Error("Response should contain redirect logic")
 	}
 
 	// CRITICAL: Verify transaction cookie is cleared
@@ -293,6 +299,9 @@ func TestHandleCallbackSuccess_WithoutRedirectCookie(t *testing.T) {
 		TxnTTL:            10 * time.Minute,
 		RedirectSkew:      5 * time.Minute,
 		CookieDomain:      ".example.com",
+		IntercomAppID:     "test-app-id",
+		IntercomJWTSecret: []byte("test-jwt-secret"),
+		IntercomJWTTTL:    10 * time.Minute,
 		AppHostname:       "example.com",
 		Auth0RedirectPath: "/callback",
 		Auth0Domain:       mockHost,
@@ -320,14 +329,17 @@ func TestHandleCallbackSuccess_WithoutRedirectCookie(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", rr.Code)
 	}
 
-	// Verify HTML response contains fallback URL
+	// Verify HTML response contains Intercom identify page
 	body := rr.Body.String()
-	expectedFallback := "https://example.com/"
-	if !strings.Contains(body, expectedFallback) {
-		t.Errorf("Expected fallback ReturnTo '%s' in response", expectedFallback)
+	if !strings.Contains(body, "intercom_user_jwt") {
+		t.Error("Response should contain 'intercom_user_jwt'")
 	}
-	if !strings.Contains(body, "auth0|user123") {
-		t.Error("Response should contain the user ID")
+	if !strings.Contains(body, "Signing you in to chat") {
+		t.Error("Response should contain Intercom identify page title")
+	}
+	// The fallback URL is in the redirect logic
+	if !strings.Contains(body, "location.replace") {
+		t.Error("Response should contain redirect logic")
 	}
 
 	// Verify transaction cookie is still cleared

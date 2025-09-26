@@ -198,7 +198,8 @@ func TestCallbackIntegration(t *testing.T) {
 		TxnTTL:                    10 * time.Minute,
 		CookieDomain:              ".example.com",
 		IntercomAppID:             "test-app-id",
-		IntercomJWTSecret:         "test-jwt-secret",
+		IntercomJWTSecret:         []byte("test-jwt-secret"),
+		IntercomJWTTTL:    10 * time.Minute,
 		Env:                       "test",
 		AppHostname:               "example.com",
 		Auth0RedirectPath:         "/callback",
@@ -264,10 +265,13 @@ func TestCallbackIntegration(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
-				// Should render success template
+				// Should render Intercom identify page
 				body := rr.Body.String()
-				if !strings.Contains(body, "Login Successful") {
-					t.Error("Should render success template")
+				if !strings.Contains(body, "intercom_user_jwt") {
+					t.Error("Should include intercom_user_jwt in page")
+				}
+				if !strings.Contains(body, "Signing you in to chat") {
+					t.Error("Should render Intercom identify page")
 				}
 
 				// Check that transaction cookie is cleared
@@ -318,10 +322,13 @@ func TestCallbackIntegration(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
-				// Should render success template
+				// Should render Intercom identify page
 				body := rr.Body.String()
-				if !strings.Contains(body, "Login Successful") {
-					t.Error("Should render success template")
+				if !strings.Contains(body, "intercom_user_jwt") {
+					t.Error("Should include intercom_user_jwt in page")
+				}
+				if !strings.Contains(body, "Signing you in to chat") {
+					t.Error("Should render Intercom identify page")
 				}
 			},
 		},

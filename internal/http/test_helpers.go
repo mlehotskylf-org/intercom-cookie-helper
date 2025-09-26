@@ -24,7 +24,8 @@ func newTestConfig() config.Config {
 
 		// Intercom configuration
 		IntercomAppID:     "test-app-id",
-		IntercomJWTSecret: "test-jwt-secret",
+		IntercomJWTSecret: []byte("test-jwt-secret"),
+		IntercomJWTTTL:    10 * time.Minute,
 
 		// Cookie configuration
 		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),

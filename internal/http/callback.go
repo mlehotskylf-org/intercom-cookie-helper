@@ -17,15 +17,6 @@ import (
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
-// AuthContext holds authenticated user information and redirect URL.
-// This struct consolidates all the data needed after successful authentication.
-type AuthContext struct {
-	Sub      string // Unique user identifier from Auth0
-	Email    string // User's email address (optional)
-	Name     string // User's display name (optional)
-	ReturnTo string // Sanitized URL to redirect the user to
-}
-
 // ErrorContext holds data for rendering the error template.
 type ErrorContext struct {
 	ErrorMessage string // Human-readable error message
@@ -221,49 +212,24 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	auth.ClearTxnCookie(w, txnOpts)
 	log.Printf("Transaction cookie cleared")
 
-	// Step 13: Build auth context with user info and return URL
-	authCtx := AuthContext{
-		Sub:      userInfo.Sub,
+	// Step 13: Render Intercom identify page with JWT
+	// Build the identify payload with user information
+	payload := auth.IdentifyPayload{
+		ReturnTo: returnTo,
+		Subject:  userInfo.Sub,
 		Email:    userInfo.Email,
 		Name:     userInfo.Name,
-		ReturnTo: returnTo,
 	}
 
-	// TODO: Complete Intercom integration
-	// 1. Create IntercomRenderer with AppID, Secret, TTL from config
-	// 2. Call renderer.Render() with IdentifyPayload:
-	//    - ReturnTo: authCtx.ReturnTo
-	//    - Subject: authCtx.Sub
-	//    - Email: authCtx.Email
-	//    - Name: authCtx.Name
-	// 3. Remove the success template rendering below
-	//
-	// Example:
-	// renderer := &auth.IntercomRenderer{
-	//     AppID:  cfg.IntercomAppID,
-	//     Secret: []byte(cfg.IntercomJWTSecret),
-	//     TTL:    10 * time.Minute,
-	// }
-	// payload := auth.IdentifyPayload{
-	//     ReturnTo: authCtx.ReturnTo,
-	//     Subject:  authCtx.Sub,
-	//     Email:    authCtx.Email,
-	//     Name:     authCtx.Name,
-	// }
-	// if err := renderer.Render(w, payload); err != nil {
-	//     log.Printf("Failed to render Intercom response: %v", err)
-	//     renderErrorPage(w, r, "Failed to complete authentication", cfg)
-	//     return
-	// }
-	// return // Important: return here to avoid rendering success template
-
-	// For now, render the success template with auth context
-	w.Header().Set(HeaderContentType, ContentTypeHTML)
-	if err := CallbackSuccessTmpl.Execute(w, authCtx); err != nil {
-		log.Printf("Failed to execute template: %v", err)
-		// Don't write error response since headers may have been sent
+	// Create the Intercom renderer from config and render the response
+	renderer := cfg.IntercomRenderer()
+	if err := renderer.Render(w, payload); err != nil {
+		log.Printf("Failed to render Intercom identify page: %v", err)
+		renderErrorPage(w, r, "Failed to complete authentication", cfg)
 		return
 	}
+
+	log.Printf("Successfully rendered Intercom identify page for user %s", userInfo.Sub)
 }
 
 // writeCallbackError writes a standardized JSON error response for callback failures.

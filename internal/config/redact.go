@@ -16,6 +16,7 @@ func (c Config) Redacted() map[string]any {
 	redacted["allowed_return_hosts"] = c.AllowedReturnHosts
 	redacted["allowed_query_params"] = c.AllowedQueryParams
 	redacted["intercom_app_id"] = c.IntercomAppID
+	redacted["intercom_jwt_ttl"] = c.IntercomJWTTTL.String()
 	redacted["auth0_domain"] = c.Auth0Domain
 	redacted["auth0_client_id"] = c.Auth0ClientID
 	redacted["auth0_redirect_path"] = c.Auth0RedirectPath
@@ -25,8 +26,8 @@ func (c Config) Redacted() map[string]any {
 	redacted["enable_hsts"] = c.EnableHSTS
 
 	// Redact sensitive fields
-	if c.IntercomJWTSecret != "" {
-		redacted["intercom_jwt_secret"] = "***"
+	if len(c.IntercomJWTSecret) > 0 {
+		redacted["intercom_jwt_secret"] = fmt.Sprintf("*** (%d bytes)", len(c.IntercomJWTSecret))
 	}
 	if c.Auth0ClientSecret != "" {
 		redacted["auth0_client_secret"] = "***"
