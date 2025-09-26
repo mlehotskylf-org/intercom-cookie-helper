@@ -59,30 +59,22 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration gu
 - Secure cookie management with HMAC signing
 - URL sanitization and validation
 - HSTS header support for production
-- Intercom JWT generation (`MintIntercomJWT`)
-- Vendor-neutral adapter pattern (`IdentifyRenderer`)
-- HTML template for Intercom Messenger integration
+- Intercom JWT generation with HS256 signing
+- Intercom Identity Verification integration
+- HTML template for Intercom Messenger boot
 - Server logging to `server.log` file
+- Complete end-to-end authentication bridge
 
-### 🚧 TODO - Final Integration
-The authentication flow works but needs the final step to complete Intercom integration:
+### Current Flow
+1. User visits protected resource
+2. Redirected to `/login` with return URL
+3. OAuth2 authentication via Auth0
+4. Token exchange and user info retrieval
+5. Intercom JWT generation with user data
+6. Render Intercom identify page
+7. Automatic redirect to original URL
 
-1. **Wire up IntercomRenderer in callback handler** (`internal/http/callback.go`)
-   - Replace the success template with `IntercomRenderer`
-   - Pass user info to generate JWT
-   - Render HTML that loads Intercom Messenger and redirects
-
-2. **Configure Intercom settings**
-   - Ensure `INTERCOM_APP_ID` is set correctly in production
-   - Ensure `INTERCOM_JWT_SECRET` is properly configured
-
-3. **Test end-to-end flow**
-   - Verify JWT is generated with correct user data
-   - Confirm Intercom Messenger loads with user context
-   - Validate automatic redirect to `return_to` URL
-
-Once these steps are complete, the flow will be:
-1. User clicks login → 2. Auth0 authentication → 3. Generate Intercom JWT → 4. Load Messenger → 5. Redirect to app
+The authentication bridge is fully functional and validates correctly with Intercom's Identity Verification.
 
 ## Development
 
