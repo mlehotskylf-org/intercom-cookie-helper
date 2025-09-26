@@ -4,7 +4,13 @@
 </head><body>
 <p>Signing you in to chat…</p>
 <script>
-  window.intercomSettings = { app_id: "{{.AppID}}", intercom_user_jwt: "{{.JWT}}" };
+  window.intercomSettings = {
+    app_id: "{{.AppID}}",
+    intercom_user_jwt: "{{.JWT}}",
+    user_id: "{{.UserID}}"{{if .Email}},
+    email: "{{.Email}}"{{end}}{{if .Name}},
+    name: "{{.Name}}"{{end}}
+  };
 </script>
 <script src="https://widget.intercom.io/widget/{{.AppID}}" async></script>
 <script>

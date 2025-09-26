@@ -33,6 +33,9 @@ type IntercomRenderer struct {
 type intercomTemplateData struct {
 	AppID    string
 	JWT      string
+	UserID   string
+	Email    string
+	Name     string
 	ReturnTo string
 }
 
@@ -77,6 +80,9 @@ func (r *IntercomRenderer) Render(w http.ResponseWriter, p IdentifyPayload) erro
 	data := intercomTemplateData{
 		AppID:    r.AppID,
 		JWT:      token,
+		UserID:   p.Subject,
+		Email:    p.Email,
+		Name:     p.Name,
 		ReturnTo: p.ReturnTo,
 	}
 
