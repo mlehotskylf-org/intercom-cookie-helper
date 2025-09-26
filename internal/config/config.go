@@ -128,14 +128,9 @@ func FromEnv() (Config, error) {
 	// Intercom settings
 	cfg.IntercomAppID = getEnv("INTERCOM_APP_ID", "")
 
-	// Parse JWT secret as base64 or hex
+	// Intercom JWT secret - use as raw string (Intercom expects the secret as-is)
 	if secret := getEnv("INTERCOM_JWT_SECRET", ""); secret != "" {
-		if decoded, err := decodeKey(secret); err == nil {
-			cfg.IntercomJWTSecret = decoded
-		} else {
-			// Fall back to using raw string bytes for backward compatibility
-			cfg.IntercomJWTSecret = []byte(secret)
-		}
+		cfg.IntercomJWTSecret = []byte(secret)
 	}
 
 	// Parse JWT TTL with default of 10 minutes

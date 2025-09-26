@@ -8,7 +8,14 @@
 </script>
 <script src="https://widget.intercom.io/widget/{{.AppID}}" async></script>
 <script>
-  // small delay to let cookie set
-  window.addEventListener('load', function(){ setTimeout(function(){ var u="{{.ReturnTo}}"; if(u){ location.replace(u); }}, 600);});
+  // Delay redirect to allow Intercom to fully load
+  window.addEventListener('load', function(){
+    console.log('Intercom settings:', window.intercomSettings);
+    setTimeout(function(){
+      console.log('Redirecting to:', "{{.ReturnTo}}");
+      var u="{{.ReturnTo}}";
+      if(u){ location.replace(u); }
+    }, 3000); // Increased to 3 seconds for testing
+  });
 </script>
 </body></html>
