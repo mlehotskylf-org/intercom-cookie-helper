@@ -110,8 +110,7 @@
         <h1>We couldn't sign you in</h1>
         <p>{{if .ErrorMessage}}{{.ErrorMessage}}{{else}}Something went wrong during authentication. Please try again.{{end}}</p>
         <div class="button-group">
-            <a href="{{.TryAgainURL}}" class="btn btn-primary">Try again</a>
-            <a href="javascript:history.back()" class="btn btn-secondary">Back</a>
+            <a href="{{.TryAgainURL}}" class="btn btn-primary">Back</a>
         </div>
     </div>
 </body>

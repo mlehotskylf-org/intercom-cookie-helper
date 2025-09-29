@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -247,7 +246,7 @@ func writeCallbackError(w http.ResponseWriter, statusCode int, errorCode, errorM
 }
 
 // renderErrorPage renders a user-friendly HTML error page for authentication failures.
-// It provides a "Try again" link that goes back to the login page with a safe default return URL.
+// It provides a link back to the return URL (original destination).
 func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string, cfg config.Config) {
 	// Build a safe default return URL
 	var defaultReturnURL string
@@ -257,13 +256,13 @@ func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string
 		defaultReturnURL = fmt.Sprintf("https://%s/", cfg.AppHostname)
 	}
 
-	// Build the "Try again" URL with encoded return_to parameter
-	tryAgainURL := fmt.Sprintf("/login?return_to=%s", url.QueryEscape(defaultReturnURL))
+	// Use the return URL directly (don't go back through login flow)
+	backURL := defaultReturnURL
 
 	// Create error context
 	errorCtx := ErrorContext{
 		ErrorMessage: errorMessage,
-		TryAgainURL:  tryAgainURL,
+		TryAgainURL:  backURL,
 	}
 
 	// Render the embedded error template

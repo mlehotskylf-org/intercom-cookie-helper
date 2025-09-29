@@ -58,11 +58,11 @@ func TestHandleCallback_ErrorPage_InvalidState(t *testing.T) {
 	if !strings.Contains(body, "Your session has expired") {
 		t.Error("Error page should contain 'Your session has expired' for missing transaction cookie")
 	}
-	if !strings.Contains(body, "Try again") {
-		t.Error("Error page should contain 'Try again' button")
+	if !strings.Contains(body, "Back") {
+		t.Error("Error page should contain 'Back' button")
 	}
-	if !strings.Contains(body, "/login?return_to=") {
-		t.Error("Error page should contain link to login page")
+	if !strings.Contains(body, "https://example.com/") {
+		t.Error("Error page should contain link to return URL")
 	}
 }
 
@@ -240,9 +240,9 @@ func TestHandleCallback_ErrorPage_LocalhostConfig(t *testing.T) {
 		t.Errorf("Expected status 400, got %d", rr.Code)
 	}
 
-	// Check that Try Again URL uses HTTP for localhost
+	// Check that Back URL uses HTTP for localhost
 	body := rr.Body.String()
-	if !strings.Contains(body, "/login?return_to=http%3A%2F%2Flocalhost%3A8080%2F") {
+	if !strings.Contains(body, "http://localhost:8080/") {
 		t.Error("Error page should use HTTP scheme for localhost in dev mode")
 	}
 }
