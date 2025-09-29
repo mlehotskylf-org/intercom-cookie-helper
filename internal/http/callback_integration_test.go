@@ -18,11 +18,9 @@ import (
 // MockAuth0Server creates a test server that mocks Auth0 endpoints
 type MockAuth0Server struct {
 	*httptest.Server
-	TokenResponse    *auth.TokenResponse
-	TokenError       *auth.TokenError
-	UserInfoResponse map[string]interface{}
-	UserInfoError    map[string]string
-	Nonce            string // Store nonce for ID token generation
+	TokenResponse *auth.TokenResponse
+	TokenError    *auth.TokenError
+	Nonce         string // Store nonce for ID token generation
 }
 
 // NewMockAuth0Server creates a new mock Auth0 server
@@ -34,8 +32,6 @@ func NewMockAuth0Server() *MockAuth0Server {
 		switch r.URL.Path {
 		case "/oauth/token":
 			mock.handleTokenExchange(w, r)
-		case "/userinfo":
-			mock.handleUserInfo(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -95,41 +91,6 @@ func (m *MockAuth0Server) handleTokenExchange(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(m.TokenResponse)
-}
-
-func (m *MockAuth0Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Check authorization header
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// If UserInfoError is set, return error response
-	if m.UserInfoError != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(m.UserInfoError)
-		return
-	}
-
-	// Return success response
-	if m.UserInfoResponse == nil {
-		// Default successful response
-		m.UserInfoResponse = map[string]interface{}{
-			"sub":   "auth0|123456",
-			"email": "test@example.com",
-			"name":  "Test User",
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(m.UserInfoResponse)
 }
 
 // createMockIDToken creates a fake ID token for testing with the given nonce
@@ -223,8 +184,6 @@ func TestCallbackIntegration(t *testing.T) {
 			setupMock: func() {
 				mockAuth0.TokenResponse = nil // Use default success
 				mockAuth0.TokenError = nil
-				mockAuth0.UserInfoResponse = nil // Use default success
-				mockAuth0.UserInfoError = nil
 			},
 			setupRequest: func() *http.Request {
 				// Generate valid PKCE values
@@ -288,8 +247,6 @@ func TestCallbackIntegration(t *testing.T) {
 			setupMock: func() {
 				mockAuth0.TokenResponse = nil // Use default success
 				mockAuth0.TokenError = nil
-				mockAuth0.UserInfoResponse = nil // Use default success
-				mockAuth0.UserInfoError = nil
 			},
 			setupRequest: func() *http.Request {
 				// Generate valid PKCE values
@@ -423,66 +380,6 @@ func TestCallbackIntegration(t *testing.T) {
 				}
 				if !strings.Contains(strings.ToLower(body), "authentication failed") {
 					t.Error("Should mention authentication error")
-				}
-			},
-		},
-		{
-			name: "userinfo fetch failure",
-			setupMock: func() {
-				// Set nonce to match what's in the transaction cookie
-				nonce := makeBase64URL("test-nonce")
-				mockAuth0.Nonce = nonce
-				mockAuth0.TokenResponse = &auth.TokenResponse{
-					AccessToken: "test-access-token",
-					IDToken:     createMockIDToken(nonce),
-					TokenType:   "Bearer",
-					ExpiresIn:   3600,
-				}
-				mockAuth0.TokenError = nil
-				mockAuth0.UserInfoError = map[string]string{
-					"error":             "invalid_token",
-					"error_description": "Token is invalid",
-				}
-				mockAuth0.UserInfoResponse = nil
-			},
-			setupRequest: func() *http.Request {
-				// Generate valid PKCE values
-				codeVerifier := makeValidCodeVerifier()
-				state := makeBase64URL("test-state")
-				nonce := makeBase64URL("test-nonce")
-
-				// Set nonce in mock server for ID token
-				mockAuth0.Nonce = nonce
-
-				// Create request
-				req := httptest.NewRequest("GET", "/callback?code=valid-code&state="+state, nil)
-
-				// Add valid transaction cookie
-				txnCookie := createTestTxnCookie(
-					t,
-					state,
-					codeVerifier,
-					nonce,
-					time.Now().Add(10*time.Minute),
-					baseCfg.CookieSigningKey,
-					baseCfg.CookieDomain,
-				)
-				req.AddCookie(txnCookie)
-
-				// Add config to context
-				req = req.WithContext(withTestConfig(req.Context(), baseCfg))
-
-				return req
-			},
-			expectedStatus: http.StatusBadRequest,
-			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
-				// Should render error template
-				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
-					t.Error("Should render error template")
-				}
-				if !strings.Contains(strings.ToLower(body), "unable to fetch user information") {
-					t.Error("Should mention userinfo error")
 				}
 			},
 		},

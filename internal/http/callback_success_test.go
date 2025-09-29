@@ -41,21 +41,6 @@ func TestHandleCallbackSuccess_TransactionCookieCleared(t *testing.T) {
 				"expires_in":   3600,
 			})
 
-		case "/userinfo":
-			// Mock successful userinfo response
-			authHeader := r.Header.Get("Authorization")
-			if authHeader != "Bearer test-access-token" {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"sub":   "auth0|user123",
-				"email": "test@example.com",
-				"name":  "Test User",
-			})
-
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -233,12 +218,6 @@ func TestHandleCallbackSuccess_WithoutRedirectCookie(t *testing.T) {
 				"access_token": "test-access-token",
 				"id_token":     createTestIDToken(t, makeBase64URL("test-nonce")),
 				"token_type":   "Bearer",
-			})
-
-		case "/userinfo":
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"sub": "auth0|user123",
 			})
 
 		default:

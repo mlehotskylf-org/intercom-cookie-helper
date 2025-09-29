@@ -167,11 +167,11 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Step 9: Fetch user information using the access token
-	userInfo, err := auth.FetchUserInfo(r.Context(), cfg.Auth0Domain, accessToken)
+	// Step 9: Parse user information from ID token
+	userInfo, err := auth.ParseUserInfoFromIDToken(idToken)
 	if err != nil {
-		log.Printf("Failed to fetch user info: %v", err)
-		renderErrorPage(w, r, ErrorMsgUserInfoFetch, cfg)
+		log.Printf("Failed to parse user info from ID token: %v", err)
+		renderErrorPage(w, r, ErrorMsgTokenValidation, cfg)
 		return
 	}
 
@@ -182,7 +182,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("User info fetched - sub: %s, email_present: %v, name_present: %v",
+	log.Printf("User info parsed from ID token - sub: %s, email_present: %v, name_present: %v",
 		userInfo.Sub, userInfo.Email != "", userInfo.Name != "")
 
 	// Step 10: Read and validate redirect cookie to get return URL
