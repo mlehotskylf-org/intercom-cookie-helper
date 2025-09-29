@@ -53,14 +53,42 @@ body {
 </script>
 <script src="https://widget.intercom.io/widget/{{.AppID}}" async></script>
 <script>
-  // Delay redirect to allow Intercom to fully load
-  window.addEventListener('load', function(){
-    console.log('Intercom settings:', window.intercomSettings);
-    setTimeout(function(){
-      console.log('Redirecting to:', "{{.ReturnTo}}");
-      var u="{{.ReturnTo}}";
-      if(u){ location.replace(u); }
-    }, 3000); // Increased to 3 seconds for testing
-  });
+  // Poll for Intercom to load before redirecting
+  (function() {
+    var retryCount = 0;
+    var MAX_RETRIES = 10; // 10 attempts * 100ms = 1 second max
+
+    function isIntercomLoaded() {
+      return typeof window.Intercom === 'function';
+    }
+
+    function waitForIntercomAndRedirect() {
+      if (isIntercomLoaded()) {
+        console.log('Intercom loaded successfully');
+        // Boot Intercom with user data
+        window.Intercom('boot', window.intercomSettings);
+
+        // Wait 1 second for Intercom to initialize, then redirect
+        setTimeout(function() {
+          console.log('Redirecting to:', "{{.ReturnTo}}");
+          var u = "{{.ReturnTo}}";
+          if (u) { location.replace(u); }
+        }, 1000);
+      } else {
+        retryCount++;
+        if (retryCount < MAX_RETRIES) {
+          console.log('Waiting for Intercom to load... attempt', retryCount);
+          setTimeout(waitForIntercomAndRedirect, 100);
+        } else {
+          console.log('Max retries reached, redirecting without Intercom');
+          var u = "{{.ReturnTo}}";
+          if (u) { location.replace(u); }
+        }
+      }
+    }
+
+    // Start polling when page loads
+    window.addEventListener('load', waitForIntercomAndRedirect);
+  })();
 </script>
 </body></html>
