@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,50 +15,9 @@ import (
 )
 
 func setupTestTemplate(t *testing.T) func() {
-	// Create a temporary web directory for tests
-	err := os.MkdirAll("web", 0755)
-	if err != nil {
-		t.Fatalf("Failed to create web directory: %v", err)
-	}
-
-	// Create success template
-	successTmplContent := `<!DOCTYPE html>
-<html>
-<body>
-<h1>Login Successful</h1>
-<p>User ID: {{.Sub}}</p>
-{{if .Email}}<p>Email: {{.Email}}</p>{{end}}
-{{if .Name}}<p>Name: {{.Name}}</p>{{end}}
-<p>Return URL: <a href="{{.ReturnTo}}">{{.ReturnTo}}</a></p>
-</body>
-</html>`
-
-	successTmplPath := filepath.Join("web", "callback-ok.tmpl")
-	err = os.WriteFile(successTmplPath, []byte(successTmplContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create success template file: %v", err)
-	}
-
-	// Create error template
-	errorTmplContent := `<!DOCTYPE html>
-<html>
-<body>
-<h1>We couldn't sign you in</h1>
-<p>{{if .ErrorMessage}}{{.ErrorMessage}}{{else}}Something went wrong during authentication.{{end}}</p>
-<a href="{{.TryAgainURL}}">Try again</a>
-</body>
-</html>`
-
-	errorTmplPath := filepath.Join("web", "error.tmpl")
-	err = os.WriteFile(errorTmplPath, []byte(errorTmplContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create error template file: %v", err)
-	}
-
-	// Return cleanup function
-	return func() {
-		os.RemoveAll("web")
-	}
+	// No-op function for backward compatibility
+	// Templates are now embedded, so no setup needed
+	return func() {}
 }
 
 // TestHandleCallbackSuccess_TransactionCookieCleared verifies that the transaction cookie
