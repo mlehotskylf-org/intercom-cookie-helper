@@ -50,6 +50,21 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			t.Error("expected intercom_user_jwt in intercomSettings")
 		}
 
+		// Check for user_id in intercomSettings
+		if !strings.Contains(body, `user_id: "auth0|12345"`) {
+			t.Error("expected user_id in intercomSettings")
+		}
+
+		// Check for email in intercomSettings
+		if !strings.Contains(body, `email: "user@example.com"`) {
+			t.Error("expected email in intercomSettings")
+		}
+
+		// Check for name in intercomSettings
+		if !strings.Contains(body, `name: "Test User"`) {
+			t.Error("expected name in intercomSettings")
+		}
+
 		// Check for Intercom widget script
 		if !strings.Contains(body, `https://widget.intercom.io/widget/`+validAppID) {
 			t.Error("expected Intercom widget script")
@@ -105,6 +120,19 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 
 		body := w.Body.String()
+
+		// Check for user_id in intercomSettings (should be present even without email/name)
+		if !strings.Contains(body, `user_id: "user123"`) {
+			t.Error("expected user_id in intercomSettings")
+		}
+
+		// Email and name should not be present
+		if strings.Contains(body, `email:`) {
+			t.Error("email should not be present when not provided")
+		}
+		if strings.Contains(body, `name:`) {
+			t.Error("name should not be present when not provided")
+		}
 
 		// Extract JWT
 		jwtStart := strings.Index(body, `intercom_user_jwt: "`) + len(`intercom_user_jwt: "`)
