@@ -1,8 +1,47 @@
 <!doctype html><html><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Signing you in…</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: white;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+}
+.container {
+  text-align: center;
+}
+.spinner {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
+  border: 4px solid #e0e0e0;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.message {
+  font-size: 18px;
+  font-weight: 500;
+}
+</style>
 </head><body>
-<p>Signing you in to chat…</p>
+<div class="container">
+  <div class="spinner"></div>
+  <p class="message">Signing you in to chat…</p>
+</div>
 <script>
   window.intercomSettings = {
     app_id: "{{.AppID}}",
