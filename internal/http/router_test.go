@@ -265,7 +265,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=https://example.com/" + strings.Repeat("a", 3600),
 			referer:        "https://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"code": "cookie_error"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{

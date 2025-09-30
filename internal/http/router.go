@@ -133,21 +133,27 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		// Get config from context
 		cfg, ok := GetConfigFromContext(r.Context())
 		if !ok {
-			WriteJSONError(w, http.StatusInternalServerError, ErrCodeInternalError, "Configuration not available")
+			ServerError(w, r)
 			return
 		}
 
-		// Step 1: Read and sanitize return_to
+		// Step 1: Read and sanitize return_to (fail closed before setting any cookies)
 		returnTo := r.URL.Query().Get("return_to")
 		if returnTo == "" {
-			WriteJSONError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Missing return_to parameter")
+			BadRequest(w, r, "Missing return_to parameter")
 			return
 		}
 
 		sanitizedURL, err := sanitizer.SanitizeReturnURL(returnTo)
 		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, ErrCodeInvalidReturnURL, err.Error())
+			BadRequest(w, r, fmt.Sprintf("Invalid return_to URL: %v", err))
 			return
+		}
+
+		// Extract return host for logging (avoid logging full URL with potential PII)
+		returnHost := ""
+		if returnURL, err := url.Parse(sanitizedURL); err == nil {
+			returnHost = returnURL.Host
 		}
 
 		// Extract referrer host for cookie payload
@@ -158,17 +164,18 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			}
 		}
 
-		// Step 2: Set redirect cookie
+		// Step 2: Set redirect cookie (only after successful sanitization)
 		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cfg.RedirectCookieOpts(), time.Now())
 		if err != nil {
-			WriteJSONError(w, http.StatusBadRequest, ErrCodeCookieError, fmt.Sprintf("Failed to set redirect cookie: %v", err))
+			// Cookie errors are typically due to size limits or encoding issues (client error)
+			BadRequest(w, r, fmt.Sprintf("Failed to set redirect cookie: %v", err))
 			return
 		}
 
 		// Step 3: Set transaction cookie with PKCE parameters
 		state, codeChallenge, nonce, err := auth.SetTxnCookie(w, cfg.TxnCookieOpts())
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, ErrCodeCookieError, fmt.Sprintf("Failed to set transaction cookie: %v", err))
+			ServerError(w, r)
 			return
 		}
 
@@ -193,13 +200,13 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			CodeChallengeMethod: "S256",
 		})
 		if err != nil {
-			WriteJSONError(w, http.StatusInternalServerError, ErrCodeInternalError, fmt.Sprintf("Failed to build authorization URL: %v", err))
+			ServerError(w, r)
 			return
 		}
 
-		// Log the login event (without secrets)
-		log.Printf("Login initiated - return_to: %s, referrer_host: %s, auth0_domain: %s",
-			sanitizedURL, referrerHost, cfg.Auth0Domain)
+		// Log the login event (host-only to avoid PII leakage in path/query)
+		log.Printf("event=login_start return_host=%s referrer_host=%s auth0_domain=%s path=%s",
+			returnHost, referrerHost, cfg.Auth0Domain, r.URL.Path)
 
 		// Step 6: Redirect to Auth0
 		http.Redirect(w, r, authorizeURL, http.StatusFound)

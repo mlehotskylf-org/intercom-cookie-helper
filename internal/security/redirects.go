@@ -44,12 +44,13 @@ func (s *Sanitizer) SanitizeReturnURL(raw string) (string, error) {
 	hostname := strings.ToLower(strings.TrimSpace(u.Hostname()))
 	port := u.Port()
 
-	// Only allow default HTTPS port (443) or no port
+	// Reject non-standard ports (only allow 443 or no port specified)
 	if port != "" && port != "443" {
 		return "", fmt.Errorf("URL must use default HTTPS port (443), got port %q", port)
 	}
 
-	// Normalize the hostname by removing trailing dots
+	// Normalize the hostname: lowercase (done above) + remove trailing dots
+	// Example: "EXAMPLE.COM.." becomes "example.com"
 	hostname = strings.TrimRight(hostname, ".")
 
 	// Set the final host (without port since we only allow 443)
