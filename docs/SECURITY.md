@@ -127,8 +127,10 @@ Multiple layers of security:
 - Minimal error disclosure
 
 ### Auditability
-- Structured logging
-- No sensitive data in logs
+- Structured logging with observability
+- PII redaction (email logged as boolean `has_email`)
+- URL redaction (full paths logged as `return_host` only)
+- Token/JWT redaction (never logged)
 - Request IDs for tracing
 - Redacted sensitive values ([REDACTED])
 
@@ -150,3 +152,25 @@ Multiple layers of security:
 - Maps `invalid_grant`, `invalid_client`, etc.
 - User-friendly error messages
 - Detailed server-side logging
+
+## Content Security Policy
+
+### Intercom Widget CSP
+Route-specific CSP for `/callback` endpoint:
+- `script-src`: Allows Intercom widget scripts with `'unsafe-inline'`
+- `connect-src`: Allows Intercom API and WebSocket connections (`wss://`)
+- `img-src`: Allows Intercom CDN images
+- `style-src`: Allows inline styles for widget
+- `frame-ancestors 'none'`: Prevents clickjacking
+
+### CSP Directives
+```
+default-src 'self';
+script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com;
+connect-src 'self' https://*.intercom.io https://api-iam.intercom.io wss://*.intercom.io;
+img-src 'self' data: https://*.intercomcdn.com;
+style-src 'self' 'unsafe-inline';
+frame-ancestors 'none'
+```
+
+Note: `'unsafe-inline'` is required for Intercom widget functionality. Generic security headers should be moved to API Gateway/LB (see [GATEWAY_HEADERS.md](GATEWAY_HEADERS.md)).

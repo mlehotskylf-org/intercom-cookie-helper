@@ -36,10 +36,10 @@ make test
 
 ### Package-Specific Tests
 ```bash
-# Auth package (token exchange, PKCE)
+# Auth package (token exchange, PKCE, JWT, renderer)
 go test ./internal/auth -v
 
-# HTTP handlers
+# HTTP handlers (login, callback, integration tests)
 go test ./internal/http -v
 
 # Security (cookies, sanitization)
@@ -51,11 +51,17 @@ go test ./internal/config -v
 
 ### Test Specific Functions
 ```bash
-# Test callback handler
-go test ./internal/http -run TestHandleCallback
+# Test callback integration (full OAuth2 flow)
+go test ./internal/http -run TestCallbackIntegration
+
+# Test callback renderer path
+go test ./internal/http -run TestCallbackRenderer
 
 # Test nonce extraction
 go test ./internal/auth -run TestExtractNonceFromIDToken
+
+# Test user info parsing
+go test ./internal/auth -run TestParseUserInfoFromIDToken
 ```
 
 ### Coverage
@@ -103,10 +109,10 @@ tail -f server.log  # If logging to file
 ### Code Organization
 ```
 internal/
-  auth/       - OAuth2/OIDC logic
+  auth/       - OAuth2/OIDC logic, JWT, Intercom renderer
   config/     - Configuration management
-  http/       - HTTP handlers and router
-  security/   - Cookie and URL security
+  http/       - HTTP handlers, router, middleware, CSP
+  security/   - Cookie signing, URL sanitization
 ```
 
 ### Adding a New Endpoint
@@ -136,9 +142,11 @@ Before implementing new features:
 - [ ] Validate all inputs
 - [ ] Use constant-time comparisons for secrets
 - [ ] Return generic errors to clients
-- [ ] Log detailed errors server-side
-- [ ] Add comprehensive tests
+- [ ] Log detailed errors server-side (with PII redaction)
+- [ ] Never log email addresses, tokens, or JWTs
+- [ ] Add comprehensive tests (unit + integration)
 - [ ] Update documentation
+- [ ] Review CSP headers if rendering HTML
 
 ## Common Tasks
 

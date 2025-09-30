@@ -47,6 +47,9 @@ make fmt-strict     # Format with gofumpt + gofmt
 - ✅ IntercomRenderer with user data injection
 - ✅ Embedded templates for production deployment
 - ✅ Complete authentication bridge with auto-redirect
+- ✅ CSP headers for Intercom widget (script-src, connect-src with WSS)
+- ✅ Renderer path tests (success, fallback, special characters)
+- ✅ Structured logging with PII redaction
 
 ## Testing
 ```bash
@@ -84,6 +87,9 @@ Tests complete in ~10-12s on modern hardware.
 - HTTP timeouts: 3s connect, 5s total
 - Redact sensitive values in logs ([REDACTED])
 - Proper OAuth2 error mapping
+- CSP headers for Intercom integration ('unsafe-inline', WSS support)
+- PII redaction: log booleans (has_email), not actual values
+- Log return_host only, not full returnTo URLs
 
 ### Configuration
 - Required fields validated at startup
@@ -91,15 +97,18 @@ Tests complete in ~10-12s on modern hardware.
 - Environment-specific defaults (dev vs prod)
 
 ## Important Files
-- `internal/http/callback.go` - OAuth2 callback handler
+- `internal/http/callback.go` - OAuth2 callback handler with logging
 - `internal/http/callback_integration_test.go` - Integration tests
-- `internal/http/router.go` - HTTP routing and middleware
+- `internal/http/callback_identify_test.go` - Renderer path tests
+- `internal/http/router.go` - HTTP routing and CSP middleware
 - `internal/http/constants.go` - HTTP package constants
 - `internal/auth/token.go` - Token exchange with Auth0
 - `internal/auth/userinfo.go` - User info fetching
+- `internal/auth/intercom_renderer.go` - Intercom identify page renderer
 - `internal/auth/constants.go` - Auth package constants
 - `internal/security/cookie.go` - Cookie signing/validation
 - `internal/config/config.go` - Configuration management
+- `docs/GATEWAY_HEADERS.md` - API Gateway/LB configuration guide
 
 ## Notes
 - Keep code simple and readable

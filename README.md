@@ -62,8 +62,10 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration gu
 - Intercom JWT generation with HS256 signing
 - Intercom Identity Verification integration
 - HTML template for Intercom Messenger boot
-- Server logging to `server.log` file
+- Server logging with PII redaction
 - Complete end-to-end authentication bridge
+- Content Security Policy headers for Intercom widget
+- Comprehensive test coverage (integration + renderer tests)
 
 ### Current Flow
 1. User visits protected resource
@@ -94,15 +96,18 @@ make restart  # Restart server
 - **Constant-time comparisons** - Timing attack prevention
 - **Request body limits** - DoS prevention (1MB max)
 - **HTTP timeouts** - Connection (3s) and total (5s) timeouts
-- **Log redaction** - Sensitive data never logged
+- **Content Security Policy** - Controlled resource loading for Intercom widget
+- **PII redaction** - Email addresses and tokens never logged
+- **Rate limiting** - API Gateway/LB level protection (see docs)
 
-See [docs/SECURITY.md](docs/SECURITY.md) for details.
+See [docs/SECURITY.md](docs/SECURITY.md) and [docs/GATEWAY_HEADERS.md](docs/GATEWAY_HEADERS.md) for details.
 
 ## Documentation
 
 - [Configuration Guide](docs/CONFIGURATION.md) - All environment variables and examples
 - [Security Features](docs/SECURITY.md) - Detailed security implementation
 - [Development Guide](docs/DEVELOPMENT.md) - Testing, debugging, and contributing
+- [Gateway Headers](docs/GATEWAY_HEADERS.md) - API Gateway/LB configuration for headers and rate limiting
 
 ## License
 
