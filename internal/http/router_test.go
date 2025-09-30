@@ -548,3 +548,146 @@ func TestDebugRedirectCookieEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestIntercomSecurityHeadersMiddleware(t *testing.T) {
+	// Test the middleware in isolation
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("test"))
+	})
+
+	wrapped := intercomSecurityHeadersMiddleware(testHandler)
+
+	req, err := http.NewRequest("GET", "/test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec, req)
+
+	// Check CSP header
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp == "" {
+		t.Error("expected Content-Security-Policy header, got none")
+	}
+
+	// Verify CSP contains required directives for Intercom
+	requiredDirectives := []string{
+		"default-src 'self'",
+		"script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com",
+		"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io wss://*.intercom.io",
+		"img-src 'self' data: https://*.intercomcdn.com",
+		"style-src 'self' 'unsafe-inline'",
+		"frame-ancestors 'none'",
+	}
+	for _, directive := range requiredDirectives {
+		if !strings.Contains(csp, directive) {
+			t.Errorf("CSP missing directive: %s", directive)
+		}
+	}
+
+	// Check Referrer-Policy
+	referrerPolicy := rec.Header().Get("Referrer-Policy")
+	if referrerPolicy != "strict-origin-when-cross-origin" {
+		t.Errorf("expected Referrer-Policy 'strict-origin-when-cross-origin', got '%s'", referrerPolicy)
+	}
+
+	// Check X-Content-Type-Options
+	contentTypeOptions := rec.Header().Get("X-Content-Type-Options")
+	if contentTypeOptions != "nosniff" {
+		t.Errorf("expected X-Content-Type-Options 'nosniff', got '%s'", contentTypeOptions)
+	}
+}
+
+func TestCallbackRouteHasSecurityHeaders(t *testing.T) {
+	// Verify /callback route has Intercom security headers
+	cfg := config.Config{
+		Env:                "test",
+		AppHostname:        "localhost",
+		Port:               "8080",
+		CookieDomain:       ".localhost",
+		EnableHSTS:         false,
+		RedirectTTL:        30 * time.Minute,
+		SessionTTL:         24 * time.Hour,
+		LogLevel:           "info",
+		CookieSigningKey:   []byte("test-signing-key-32-bytes-long!"),
+		Auth0Domain:        "test.auth0.com",
+		Auth0ClientID:      "test-client-id",
+		Auth0ClientSecret:  "test-client-secret",
+		Auth0RedirectPath:  "/callback",
+		IntercomAppID:      "test-app-id",
+		IntercomJWTSecret:  []byte("test-jwt-secret"),
+		IntercomJWTTTL:     10 * time.Minute,
+		TxnTTL:             10 * time.Minute,
+		TxnSkew:            1 * time.Minute,
+	}
+	router := NewRouter(cfg)
+
+	req, err := http.NewRequest("GET", "/callback", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	// Check that CSP header is present (callback will fail due to missing params, but headers should be set)
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp == "" {
+		t.Error("expected Content-Security-Policy header on /callback route")
+	}
+
+	if !strings.Contains(csp, "widget.intercom.io") {
+		t.Error("expected CSP to allow Intercom widget")
+	}
+
+	// Check other security headers
+	if rec.Header().Get("Referrer-Policy") == "" {
+		t.Error("expected Referrer-Policy header on /callback route")
+	}
+
+	if rec.Header().Get("X-Content-Type-Options") == "" {
+		t.Error("expected X-Content-Type-Options header on /callback route")
+	}
+}
+
+func TestHealthzRouteNoIntercomHeaders(t *testing.T) {
+	// Verify /healthz route does NOT have Intercom-specific CSP
+	cfg := config.Config{
+		Env:          "test",
+		AppHostname:  "localhost",
+		Port:         "8080",
+		CookieDomain: ".localhost",
+		EnableHSTS:   false,
+		RedirectTTL:  30 * time.Minute,
+		SessionTTL:   24 * time.Hour,
+		LogLevel:     "info",
+	}
+	router := NewRouter(cfg)
+
+	req, err := http.NewRequest("GET", "/healthz", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	// /healthz should NOT have Intercom-specific CSP
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp != "" {
+		t.Errorf("expected no Content-Security-Policy header on /healthz route, got: %s", csp)
+	}
+
+	// /healthz should also NOT have the generic headers (until they move to gateway)
+	referrerPolicy := rec.Header().Get("Referrer-Policy")
+	if referrerPolicy != "" {
+		t.Errorf("expected no Referrer-Policy header on /healthz route, got: %s", referrerPolicy)
+	}
+
+	contentTypeOptions := rec.Header().Get("X-Content-Type-Options")
+	if contentTypeOptions != "" {
+		t.Errorf("expected no X-Content-Type-Options header on /healthz route, got: %s", contentTypeOptions)
+	}
+}

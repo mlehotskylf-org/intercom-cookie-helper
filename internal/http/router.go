@@ -56,8 +56,8 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Login endpoint with referrer validation
 	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get(RouteLogin, loginHandler(sanitizer))
 
-	// Callback endpoint - OAuth2 callback handler
-	r.Get(RouteCallback, handleCallback)
+	// Callback endpoint - OAuth2 callback handler with Intercom security headers
+	r.With(intercomSecurityHeadersMiddleware).Get(RouteCallback, handleCallback)
 
 	// Debug endpoint (only in non-prod environments)
 	if cfg.Env != "prod" {
@@ -80,9 +80,34 @@ func configMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 
 // hstsMiddleware adds the Strict-Transport-Security header.
 // Forces HTTPS for one year with subdomains included for security.
+// TODO(DevOps): Move to API Gateway/Load Balancer for centralized security policy
 func hstsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// intercomSecurityHeadersMiddleware adds security headers for the Intercom identify page.
+// Includes CSP to allow Intercom assets while maintaining tight security policy.
+func intercomSecurityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content Security Policy - Allow Intercom assets
+		// NOTE: This is route-specific CSP for /callback (Intercom identify page)
+		// Keep this in application as it requires knowledge of Intercom dependencies
+		csp := "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com; " +
+			"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io wss://*.intercom.io; " +
+			"img-src 'self' data: https://*.intercomcdn.com; " +
+			"style-src 'self' 'unsafe-inline'; " +
+			"frame-ancestors 'none'"
+		w.Header().Set("Content-Security-Policy", csp)
+
+		// TODO(DevOps): Move these generic headers to API Gateway/Load Balancer
+		// They should apply to all routes, not just /callback
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
 		next.ServeHTTP(w, r)
 	})
 }

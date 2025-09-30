@@ -174,6 +174,185 @@ func TestExtractNonceFromIDToken_SpecialCharacters(t *testing.T) {
 	}
 }
 
+// TestParseUserInfoFromIDToken tests the ParseUserInfoFromIDToken function
+func TestParseUserInfoFromIDToken(t *testing.T) {
+	tests := []struct {
+		name             string
+		idToken          string
+		expectedUserInfo *UserInfo
+		expectedError    string
+	}{
+		{
+			name: "valid token with all user claims",
+			idToken: createTestToken(t, map[string]interface{}{
+				"sub":   "auth0|123456",
+				"email": "user@example.com",
+				"name":  "John Doe",
+			}),
+			expectedUserInfo: &UserInfo{
+				Sub:   "auth0|123456",
+				Email: "user@example.com",
+				Name:  "John Doe",
+			},
+			expectedError: "",
+		},
+		{
+			name: "valid token with only required sub claim",
+			idToken: createTestToken(t, map[string]interface{}{
+				"sub": "google-oauth2|987654321",
+			}),
+			expectedUserInfo: &UserInfo{
+				Sub:   "google-oauth2|987654321",
+				Email: "",
+				Name:  "",
+			},
+			expectedError: "",
+		},
+		{
+			name: "valid token with sub and email only",
+			idToken: createTestToken(t, map[string]interface{}{
+				"sub":   "auth0|user123",
+				"email": "test@test.com",
+			}),
+			expectedUserInfo: &UserInfo{
+				Sub:   "auth0|user123",
+				Email: "test@test.com",
+				Name:  "",
+			},
+			expectedError: "",
+		},
+		{
+			name: "valid token with sub and name only",
+			idToken: createTestToken(t, map[string]interface{}{
+				"sub":  "auth0|user456",
+				"name": "Jane Smith",
+			}),
+			expectedUserInfo: &UserInfo{
+				Sub:   "auth0|user456",
+				Email: "",
+				Name:  "Jane Smith",
+			},
+			expectedError: "",
+		},
+		{
+			name: "token missing required sub claim",
+			idToken: createTestToken(t, map[string]interface{}{
+				"email": "user@example.com",
+				"name":  "John Doe",
+			}),
+			expectedUserInfo: nil,
+			expectedError:    "id token missing required sub claim",
+		},
+		{
+			name: "token with empty sub claim",
+			idToken: createTestToken(t, map[string]interface{}{
+				"sub":   "",
+				"email": "user@example.com",
+			}),
+			expectedUserInfo: nil,
+			expectedError:    "id token missing required sub claim",
+		},
+		{
+			name:             "empty token",
+			idToken:          "",
+			expectedUserInfo: nil,
+			expectedError:    "id token is empty",
+		},
+		{
+			name:             "malformed token - only two segments",
+			idToken:          "header.payload",
+			expectedUserInfo: nil,
+			expectedError:    "invalid id token format: expected 3 segments, got 2",
+		},
+		{
+			name:             "token with invalid base64 payload",
+			idToken:          "header.!!!invalid!!.signature",
+			expectedUserInfo: nil,
+			expectedError:    "failed to decode id token payload",
+		},
+		{
+			name:             "token with invalid JSON payload",
+			idToken:          "header." + base64.RawURLEncoding.EncodeToString([]byte("not-json")) + ".signature",
+			expectedUserInfo: nil,
+			expectedError:    "failed to parse id token payload",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userInfo, err := ParseUserInfoFromIDToken(tt.idToken)
+
+			// Check error expectations
+			if tt.expectedError != "" {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tt.expectedError)
+				} else if !strings.Contains(err.Error(), tt.expectedError) {
+					t.Errorf("expected error containing %q, got %q", tt.expectedError, err.Error())
+				}
+				return
+			}
+
+			// Check success expectations
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if userInfo == nil {
+				t.Error("expected UserInfo, got nil")
+				return
+			}
+
+			if userInfo.Sub != tt.expectedUserInfo.Sub {
+				t.Errorf("expected Sub %q, got %q", tt.expectedUserInfo.Sub, userInfo.Sub)
+			}
+			if userInfo.Email != tt.expectedUserInfo.Email {
+				t.Errorf("expected Email %q, got %q", tt.expectedUserInfo.Email, userInfo.Email)
+			}
+			if userInfo.Name != tt.expectedUserInfo.Name {
+				t.Errorf("expected Name %q, got %q", tt.expectedUserInfo.Name, userInfo.Name)
+			}
+		})
+	}
+}
+
+// TestParseUserInfoFromIDToken_RealWorldToken tests with a realistic Auth0 ID token structure
+func TestParseUserInfoFromIDToken_RealWorldToken(t *testing.T) {
+	claims := map[string]interface{}{
+		"iss":              "https://auth0.example.com/",
+		"sub":              "auth0|507f1f77bcf86cd799439011",
+		"aud":              "my-client-id",
+		"iat":              1516239022,
+		"exp":              1516239322,
+		"email":            "realuser@example.com",
+		"email_verified":   true,
+		"name":             "Real User",
+		"given_name":       "Real",
+		"family_name":      "User",
+		"picture":          "https://example.com/avatar.jpg",
+		"locale":           "en",
+		"updated_at":       "2024-01-01T00:00:00.000Z",
+		"nonce":            "test-nonce",
+	}
+
+	token := createTestToken(t, claims)
+	userInfo, err := ParseUserInfoFromIDToken(token)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if userInfo.Sub != "auth0|507f1f77bcf86cd799439011" {
+		t.Errorf("expected Sub %q, got %q", "auth0|507f1f77bcf86cd799439011", userInfo.Sub)
+	}
+	if userInfo.Email != "realuser@example.com" {
+		t.Errorf("expected Email %q, got %q", "realuser@example.com", userInfo.Email)
+	}
+	if userInfo.Name != "Real User" {
+		t.Errorf("expected Name %q, got %q", "Real User", userInfo.Name)
+	}
+}
+
 // createTestToken creates a test JWT token with the given payload claims
 func createTestToken(t *testing.T, claims map[string]interface{}) string {
 	t.Helper()
