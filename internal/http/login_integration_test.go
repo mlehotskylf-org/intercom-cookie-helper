@@ -368,4 +368,89 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 			t.Errorf("expected status 404 in production, got %d", debugRec.Code)
 		}
 	})
+
+	t.Run("login with not-allowed referer returns 400 and no cookies", func(t *testing.T) {
+		loginReq, _ := http.NewRequest("GET", "/login?return_to=https://example.com/test", nil)
+		loginReq.Header.Set("Referer", "https://evil.com/phishing")
+
+		loginRec := httptest.NewRecorder()
+		router.ServeHTTP(loginRec, loginReq)
+
+		// Should return 400
+		if loginRec.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400 for disallowed referer, got %d", loginRec.Code)
+		}
+
+		// Should not set any cookies
+		cookies := loginRec.Result().Cookies()
+		for _, cookie := range cookies {
+			if cookie.Name == security.RedirectCookieName {
+				t.Errorf("expected no redirect cookie for disallowed referer, but got one")
+			}
+		}
+
+		// Should return JSON error
+		var response map[string]interface{}
+		if err := json.Unmarshal(loginRec.Body.Bytes(), &response); err != nil {
+			t.Errorf("expected JSON error response, got: %s", loginRec.Body.String())
+		}
+
+		if errMsg, exists := response["error"]; !exists || errMsg != "invalid_request" {
+			t.Errorf("expected error 'invalid_request', got %v", response)
+		}
+	})
+
+	t.Run("login with mixed-case host and trailing dot is allowed", func(t *testing.T) {
+		// Mixed case + trailing dot should normalize and work
+		loginReq, _ := http.NewRequest("GET", "/login?return_to=https://EXAMPLE.COM./test", nil)
+		loginReq.Header.Set("Referer", "https://Example.Com/")
+
+		loginRec := httptest.NewRecorder()
+		router.ServeHTTP(loginRec, loginReq)
+
+		// Should return 302 redirect to Auth0
+		if loginRec.Code != http.StatusFound {
+			t.Errorf("expected status 302 for normalized host, got %d: %s", loginRec.Code, loginRec.Body.String())
+		}
+
+		// Should set redirect cookie
+		cookies := loginRec.Result().Cookies()
+		var redirectCookie *http.Cookie
+		for _, cookie := range cookies {
+			if cookie.Name == security.RedirectCookieName {
+				redirectCookie = cookie
+				break
+			}
+		}
+
+		if redirectCookie == nil {
+			t.Fatal("expected redirect cookie to be set for normalized host")
+		}
+
+		// Verify redirect to Auth0
+		location := loginRec.Header().Get("Location")
+		if !strings.Contains(location, "test.auth0.com") {
+			t.Errorf("expected redirect to Auth0, got: %s", location)
+		}
+
+		// Verify cookie can be decoded and URL was normalized
+		debugReq, _ := http.NewRequest("GET", "/debug/redirect-cookie", nil)
+		debugReq.AddCookie(redirectCookie)
+
+		debugRec := httptest.NewRecorder()
+		router.ServeHTTP(debugRec, debugReq)
+
+		if debugRec.Code != http.StatusOK {
+			t.Fatalf("debug request failed: %s", debugRec.Body.String())
+		}
+
+		var debugResponse map[string]interface{}
+		json.Unmarshal(debugRec.Body.Bytes(), &debugResponse)
+
+		// URL should be normalized to lowercase without trailing dot
+		expectedNormalized := "https://example.com/test"
+		if url, _ := debugResponse["url"].(string); url != expectedNormalized {
+			t.Errorf("expected normalized URL '%s', got '%s'", expectedNormalized, url)
+		}
+	})
 }
