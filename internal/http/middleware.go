@@ -32,6 +32,7 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 			// Parse the referer URL
 			refURL, err := url.Parse(referer)
 			if err != nil {
+				metrics.LoginBadReferer.Add(1)
 				log.Printf("event=ref_check ok=false reason=parse_error referer=%s path=%s", referer, r.URL.Path)
 				BadRequest(w, r, "Invalid Referer URL format")
 				return
@@ -39,6 +40,7 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 
 			// Require HTTPS scheme
 			if refURL.Scheme != "https" {
+				metrics.LoginBadReferer.Add(1)
 				log.Printf("event=ref_check ok=false reason=invalid_scheme scheme=%s referer_host=%s path=%s",
 					refURL.Scheme, refURL.Host, r.URL.Path)
 				BadRequest(w, r, "Referer must use HTTPS")
@@ -52,6 +54,7 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 				host = h
 			}
 			if net.ParseIP(host) != nil {
+				metrics.LoginBadReferer.Add(1)
 				log.Printf("event=ref_check ok=false reason=ip_literal referer_host=%s path=%s", refURL.Host, r.URL.Path)
 				BadRequest(w, r, "Referer cannot be an IP address")
 				return
@@ -59,6 +62,7 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 
 			// Check if host is in allowlist
 			if !allow.IsAllowed(refURL.Host) {
+				metrics.LoginBadReferer.Add(1)
 				log.Printf("event=ref_check ok=false reason=not_allowed referer_host=%s path=%s", refURL.Host, r.URL.Path)
 				BadRequest(w, r, "Referer host not in allowlist")
 				return

@@ -59,9 +59,10 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Callback endpoint - OAuth2 callback handler with Intercom security headers
 	r.With(intercomSecurityHeadersMiddleware).Get(RouteCallback, handleCallback)
 
-	// Debug endpoint (only in non-prod environments)
+	// Debug endpoints (only in non-prod environments)
 	if cfg.Env != "prod" {
 		r.Get("/debug/redirect-cookie", debugRedirectCookieHandler)
+		r.Get("/metrics/dev", metricsHandler)
 	}
 
 	return r
@@ -130,6 +131,8 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 // Validates return_to URL and referrer before processing.
 func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		metrics.LoginStart.Add(1)
+
 		// Get config from context
 		cfg, ok := GetConfigFromContext(r.Context())
 		if !ok {
@@ -140,12 +143,14 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		// Step 1: Read and sanitize return_to (fail closed before setting any cookies)
 		returnTo := r.URL.Query().Get("return_to")
 		if returnTo == "" {
+			metrics.LoginBadReturn.Add(1)
 			BadRequest(w, r, "Missing return_to parameter")
 			return
 		}
 
 		sanitizedURL, err := sanitizer.SanitizeReturnURL(returnTo)
 		if err != nil {
+			metrics.LoginBadReturn.Add(1)
 			BadRequest(w, r, fmt.Sprintf("Invalid return_to URL: %v", err))
 			return
 		}
@@ -168,6 +173,7 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cfg.RedirectCookieOpts(), time.Now())
 		if err != nil {
 			// Cookie errors are typically due to size limits or encoding issues (client error)
+			metrics.LoginCookieFail.Add(1)
 			BadRequest(w, r, fmt.Sprintf("Failed to set redirect cookie: %v", err))
 			return
 		}
@@ -175,6 +181,7 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		// Step 3: Set transaction cookie with PKCE parameters
 		state, codeChallenge, nonce, err := auth.SetTxnCookie(w, cfg.TxnCookieOpts())
 		if err != nil {
+			metrics.LoginCookieFail.Add(1)
 			ServerError(w, r)
 			return
 		}
@@ -209,6 +216,7 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			returnHost, referrerHost, cfg.Auth0Domain, r.URL.Path)
 
 		// Step 6: Redirect to Auth0
+		metrics.LoginOK.Add(1)
 		http.Redirect(w, r, authorizeURL, http.StatusFound)
 	}
 }

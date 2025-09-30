@@ -28,6 +28,8 @@ type ErrorContext struct {
 // authorization code for tokens using PKCE, and validates the nonce in the ID token.
 // This is the critical security checkpoint in the OAuth2 flow.
 func handleCallback(w http.ResponseWriter, r *http.Request) {
+	metrics.CbStart.Add(1)
+
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())
 	if !ok {
@@ -82,6 +84,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Step 3: Validate state parameter (constant-time comparison)
 	if subtle.ConstantTimeCompare([]byte(state), []byte(txn.State)) != 1 {
+		metrics.CbStateMismatch.Add(1)
 		log.Printf("State mismatch detected")
 		renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 		return
@@ -123,6 +126,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		txn.CV, // code_verifier for PKCE
 	)
 	if err != nil {
+		metrics.CbExchangeFail.Add(1)
 		log.Printf("Token exchange failed: %v", err)
 		renderErrorPage(w, r, ErrorMsgAuthFailed, cfg)
 		return
@@ -145,6 +149,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	if idToken != "" {
 		idTokenNonce, err := auth.ExtractNonceFromIDToken(idToken)
 		if err != nil {
+			metrics.CbNonceFail.Add(1)
 			log.Printf("Failed to extract nonce from ID token: %v", err)
 			// Require valid nonce extraction as security policy
 			renderErrorPage(w, r, ErrorMsgTokenValidation, cfg)
@@ -154,6 +159,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		// Perform constant-time comparison of nonces
 		if idTokenNonce != "" && txn.Nonce != "" {
 			if subtle.ConstantTimeCompare([]byte(idTokenNonce), []byte(txn.Nonce)) != 1 {
+				metrics.CbNonceFail.Add(1)
 				log.Printf("Nonce mismatch detected")
 				renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
 				return
@@ -161,6 +167,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Nonce verification successful")
 		} else if idTokenNonce != "" || txn.Nonce != "" {
 			// One nonce is present but not the other - this is a mismatch
+			metrics.CbNonceFail.Add(1)
 			log.Printf("Nonce presence mismatch - txn_nonce_present: %v, id_token_nonce_present: %v",
 				txn.Nonce != "", idTokenNonce != "")
 			renderErrorPage(w, r, ErrorMsgSecurityValidation, cfg)
@@ -171,6 +178,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Step 9: Parse user information from ID token
 	userInfo, err := auth.ParseUserInfoFromIDToken(idToken)
 	if err != nil {
+		metrics.CbUserinfoFail.Add(1)
 		log.Printf("Failed to parse user info from ID token: %v", err)
 		renderErrorPage(w, r, ErrorMsgTokenValidation, cfg)
 		return
@@ -238,6 +246,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log successful render with safe observability (no PII, no tokens/JWT)
+	metrics.CbOK.Add(1)
 	log.Printf("Identify rendered - subject: %s, has_email: %v, return_host: %s",
 		userInfo.Sub, userInfo.Email != "", returnHost)
 }
