@@ -67,23 +67,38 @@ Stores sanitized return URL:
 
 ### Referrer Validation
 For `/login` endpoint:
-- Requires HTTPS referrer from allowed hosts
-- Empty referrer allowed (direct navigation)
-- Invalid referrer returns 403
+- HTTPS-only enforcement (rejects http://, ftp://, etc.)
+- IP literal rejection (no IPv4/IPv6 addresses)
+- Host allowlist validation (with wildcard support)
+- Empty referrer allowed (Intercom widgets, privacy policies)
+- Invalid referrer returns 400 with JSON error
+- Structured logging: `event=ref_check ok=true/false reason=...`
 
 ## Error Handling
 
+### Centralized Error Responses
+- `BadRequest(w, r, reason)` - 400 with generic `invalid_request` error
+- `TooManyRequests(w, r)` - 429 with `rate_limited` error
+- `ServerError(w, r)` - 500 with `server_error` error
+- All JSON responses: `Content-Type: application/json; charset=utf-8`
+
 ### Information Leak Prevention
 - Generic client errors: `{"error": "invalid_request"}`
-- Detailed server-side logging only
+- Detailed server-side logging only with structured format
 - Never echo user input in errors
 - No stack traces in responses
+- Host-only logging for URLs (prevents PII leakage)
 
 ### Timing Attack Prevention
 - Constant-time string comparisons for:
   - State parameter validation
   - Nonce verification
   - Cookie signature validation
+
+### Fail-Closed Validation
+- `return_to` URL validated before setting any cookies
+- Invalid input returns 400 with no state changes
+- Prevents cookie pollution attacks
 
 ## Transport Security
 
@@ -174,3 +189,44 @@ frame-ancestors 'none'
 ```
 
 Note: `'unsafe-inline'` is required for Intercom widget functionality. Generic security headers should be moved to API Gateway/LB (see [GATEWAY_HEADERS.md](GATEWAY_HEADERS.md)).
+
+## Global Security Headers
+
+Applied to all responses via `securityHeadersMiddleware`:
+- `Referrer-Policy: strict-origin-when-cross-origin` - Controls referrer information
+- `X-Content-Type-Options: nosniff` - Prevents MIME type sniffing
+- `Permissions-Policy: geolocation=(), microphone=(), camera=()` - Disables unnecessary features
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` - HSTS (when enabled)
+
+Note: These headers are currently set in the application but should be migrated to API Gateway/Load Balancer for centralized security policy.
+
+## Observability & Metrics
+
+### In-Memory Metrics
+Lightweight atomic counters for monitoring:
+- Login flow: `start`, `bad_referer`, `bad_return`, `cookie_fail`, `ok`
+- Callback flow: `start`, `state_mismatch`, `exchange_fail`, `nonce_fail`, `userinfo_fail`, `cookie_fail`, `ok`
+- Endpoint: `GET /metrics/dev` (non-prod only)
+- Thread-safe with `sync/atomic`
+
+### Structured Logging
+- Event-based format: `event=ref_check ok=true referer_host=example.com`
+- Key-value pairs for easy parsing
+- No PII in logs (host-only, boolean flags)
+- Request IDs for tracing
+
+## Testing
+
+### Fuzz Testing
+Security-critical parsing functions are fuzz tested:
+- `FuzzRefererParsing` - Tests referer middleware against malicious inputs
+- `FuzzReturnURLParsing` - Tests URL sanitization against attacks
+- Seed corpus includes: null bytes, control characters, IP literals, scheme attacks, port overflows
+- Validates no panics occur with malformed input
+
+### Integration Testing
+- Negative test cases for bad referer (400, no cookies)
+- Negative test cases for bad return_to (400, no cookies)
+- Mixed-case host and trailing dot normalization
+- Key rotation validation
+- Metrics counter increments

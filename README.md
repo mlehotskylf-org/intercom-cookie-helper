@@ -22,6 +22,7 @@ The server starts on port 8080 (or `PORT` if set).
 | `GET /healthz` | Health check |
 | `GET /login?return_to=<url>` | Initiates OAuth2 authentication with Auth0 |
 | `GET /callback?code=<code>&state=<state>` | Handles OAuth2 callback from Auth0 |
+| `GET /metrics/dev` | Metrics endpoint (non-prod only) |
 
 ## Configuration
 
@@ -66,6 +67,11 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration gu
 - Complete end-to-end authentication bridge
 - Content Security Policy headers for Intercom widget
 - Comprehensive test coverage (integration + renderer tests)
+- Centralized error response system with uniform JSON
+- Referer validation middleware with structured logging
+- Global security headers (Referrer-Policy, X-Content-Type, Permissions-Policy)
+- Lightweight in-memory metrics with atomic counters
+- Fuzz testing for security-critical parsing functions
 
 ### Current Flow
 1. User visits protected resource
@@ -97,7 +103,13 @@ make restart  # Restart server
 - **Request body limits** - DoS prevention (1MB max)
 - **HTTP timeouts** - Connection (3s) and total (5s) timeouts
 - **Content Security Policy** - Controlled resource loading for Intercom widget
-- **PII redaction** - Email addresses and tokens never logged
+- **Referer validation** - HTTPS-only, IP literal rejection, host allowlist enforcement
+- **Fail-closed validation** - return_to validated before setting any cookies
+- **Port normalization** - Only HTTPS port 443 allowed
+- **Security headers** - Referrer-Policy, X-Content-Type-Options, Permissions-Policy, HSTS
+- **PII redaction** - Email addresses and tokens never logged, host-only logging for URLs
+- **Fuzz tested** - Security-critical parsing functions tested against malicious inputs
+- **Metrics observability** - Atomic counters for monitoring authentication flow health
 - **Rate limiting** - API Gateway/LB level protection (see docs)
 
 See [docs/SECURITY.md](docs/SECURITY.md) and [docs/GATEWAY_HEADERS.md](docs/GATEWAY_HEADERS.md) for details.

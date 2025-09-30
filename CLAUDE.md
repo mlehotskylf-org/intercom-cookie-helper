@@ -38,6 +38,7 @@ make fmt-strict     # Format with gofumpt + gofmt
 ## Current Implementation Status
 - ✅ `/login` - OAuth2 flow initiation with PKCE
 - ✅ `/callback` - Token exchange with nonce verification
+- ✅ `/metrics/dev` - Lightweight metrics endpoint (non-prod only)
 - ✅ User info fetching from Auth0
 - ✅ Integration tests with mock Auth0 server
 - ✅ Security hardening (timeouts, body limits, log redaction)
@@ -50,6 +51,14 @@ make fmt-strict     # Format with gofumpt + gofmt
 - ✅ CSP headers for Intercom widget (script-src, connect-src with WSS)
 - ✅ Renderer path tests (success, fallback, special characters)
 - ✅ Structured logging with PII redaction
+- ✅ Centralized error responses (BadRequest, TooManyRequests, ServerError)
+- ✅ Referer validation middleware (HTTPS-only, IP rejection, host allowlist)
+- ✅ Fail-closed validation (return_to validated before cookies)
+- ✅ Global security headers (Referrer-Policy, X-Content-Type, Permissions-Policy, HSTS)
+- ✅ Route-specific CSP for Intercom identify page
+- ✅ In-memory metrics with atomic counters
+- ✅ Fuzz testing for referer and URL parsing
+- ✅ Negative integration tests (bad referer, bad return_to)
 
 ## Testing
 ```bash
@@ -72,24 +81,39 @@ go test ./internal/http -run TestCallbackIntegration -v
 Tests run with `-p=1` flag to prevent parallel execution conflicts.
 Tests complete in ~10-12s on modern hardware.
 
+### Fuzz Testing
+```bash
+# Run fuzz tests for referer parsing (5 seconds)
+go test -run Fuzz -fuzz=FuzzRefererParsing -fuzztime=5s ./internal/http
+
+# Run fuzz tests for URL parsing (5 seconds)
+go test -run Fuzz -fuzz=FuzzReturnURLParsing -fuzztime=5s ./internal/http
+```
+
 ## Code Patterns
 
 ### Error Handling
+- Use centralized error helpers: `BadRequest()`, `TooManyRequests()`, `ServerError()`
 - Return generic errors to clients: `{"error": "invalid_request"}`
-- Log detailed errors server-side
+- All JSON responses include `Content-Type: application/json; charset=utf-8`
+- Log detailed errors server-side with structured logging
 - Never expose sensitive data in responses
 
 ### Security
 - Use `crypto/subtle` for constant-time comparisons
 - HMAC-SHA256 for cookie signing
-- Validate all inputs before processing
+- Validate all inputs before processing (fail-closed)
 - 1MB body size limits with `io.LimitReader`
 - HTTP timeouts: 3s connect, 5s total
 - Redact sensitive values in logs ([REDACTED])
 - Proper OAuth2 error mapping
-- CSP headers for Intercom integration ('unsafe-inline', WSS support)
+- CSP headers for Intercom integration ('unsafe-inline' for identify template)
+- Referer validation: HTTPS-only, IP literal rejection, host allowlist
+- Port normalization: only HTTPS port 443 allowed
+- Global security headers: Referrer-Policy, X-Content-Type-Options, Permissions-Policy, HSTS
 - PII redaction: log booleans (has_email), not actual values
 - Log return_host only, not full returnTo URLs
+- Fuzz tested parsing functions to prevent panics
 
 ### Configuration
 - Required fields validated at startup
@@ -100,13 +124,20 @@ Tests complete in ~10-12s on modern hardware.
 - `internal/http/callback.go` - OAuth2 callback handler with logging
 - `internal/http/callback_integration_test.go` - Integration tests
 - `internal/http/callback_identify_test.go` - Renderer path tests
-- `internal/http/router.go` - HTTP routing and CSP middleware
+- `internal/http/router.go` - HTTP routing and security middleware
+- `internal/http/middleware.go` - Referer validation middleware
+- `internal/http/errors.go` - Centralized error response helpers
+- `internal/http/metrics.go` - Lightweight in-memory metrics
+- `internal/http/csp.go` - Route-specific CSP for Intercom identify page
+- `internal/http/middleware_fuzz_test.go` - Fuzz tests for security-critical parsing
+- `internal/http/login_integration_test.go` - Login flow integration tests
 - `internal/http/constants.go` - HTTP package constants
 - `internal/auth/token.go` - Token exchange with Auth0
 - `internal/auth/userinfo.go` - User info fetching
 - `internal/auth/intercom_renderer.go` - Intercom identify page renderer
 - `internal/auth/constants.go` - Auth package constants
 - `internal/security/cookie.go` - Cookie signing/validation
+- `internal/security/redirects.go` - URL sanitization and validation
 - `internal/config/config.go` - Configuration management
 - `docs/GATEWAY_HEADERS.md` - API Gateway/LB configuration guide
 
