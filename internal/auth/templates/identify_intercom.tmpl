@@ -68,11 +68,26 @@ body {
         // Boot Intercom with user data
         window.Intercom('boot', window.intercomSettings);
 
-        // Wait 1 second for Intercom to initialize, then redirect
+        // Wait 1 second for Intercom to initialize, then handle redirect/close
         setTimeout(function() {
-          console.log('Redirecting to:', "{{.ReturnTo}}");
+          console.log('Intercom initialized, handling redirect');
           var u = "{{.ReturnTo}}";
-          if (u) { location.replace(u); }
+
+          // Detect if opened as popup/tab - try to close instead of redirect
+          if (window.opener && !window.opener.closed) {
+            console.log('Opened as popup, closing window');
+            // Notify opener that auth completed (optional)
+            try {
+              window.opener.postMessage({ type: 'IC_AUTH', ok: true }, '*');
+            } catch(e) {
+              console.log('Could not notify opener:', e);
+            }
+            window.close();
+          } else {
+            // No opener or opener closed - redirect as normal
+            console.log('Redirecting to:', u);
+            if (u) { location.replace(u); }
+          }
         }, 1000);
       } else {
         retryCount++;
@@ -80,9 +95,19 @@ body {
           console.log('Waiting for Intercom to load... attempt', retryCount);
           setTimeout(waitForIntercomAndRedirect, 100);
         } else {
-          console.log('Max retries reached, redirecting without Intercom');
+          console.log('Max retries reached, handling redirect without Intercom');
           var u = "{{.ReturnTo}}";
-          if (u) { location.replace(u); }
+
+          // Try to close if popup, otherwise redirect
+          if (window.opener && !window.opener.closed) {
+            console.log('Opened as popup, closing window (no Intercom)');
+            try {
+              window.opener.postMessage({ type: 'IC_AUTH', ok: true }, '*');
+            } catch(e) {}
+            window.close();
+          } else {
+            if (u) { location.replace(u); }
+          }
         }
       }
     }
