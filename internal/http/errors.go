@@ -6,40 +6,61 @@ import (
 	"net/http"
 )
 
-// ErrorResponse represents a JSON error response
-// Only contains an error field to avoid leaking internal details
+// ErrorResponse represents a JSON error response.
+// Only contains an error field to avoid leaking internal details.
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-// WriteClientError writes a 400 error response without exposing internal details
-// The actual error reason is logged server-side for debugging
-func WriteClientError(w http.ResponseWriter, logMessage string) {
-	log.Printf("Client error: %s", logMessage)
-
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(http.StatusBadRequest)
-
-	resp := ErrorResponse{
-		Error: "invalid_request",
-	}
-
-	_ = json.NewEncoder(w).Encode(resp)
+// BadRequest writes a 400 Bad Request response with a generic error message.
+// The detailed reason is logged server-side but not exposed to the client.
+func BadRequest(w http.ResponseWriter, r *http.Request, reason string) {
+	log.Printf("Bad request - path: %s, reason: %s", r.URL.Path, reason)
+	writeJSONError(w, http.StatusBadRequest, "invalid_request")
 }
 
-// WriteServerError writes a 500 error response without exposing internal details
-// The actual error is logged server-side for debugging
-func WriteServerError(w http.ResponseWriter, logMessage string) {
-	log.Printf("Server error: %s", logMessage)
+// TooManyRequests writes a 429 Too Many Requests response.
+// Used when rate limiting is applied.
+func TooManyRequests(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Rate limited - path: %s, remote_addr: %s", r.URL.Path, r.RemoteAddr)
+	writeJSONError(w, http.StatusTooManyRequests, "rate_limited")
+}
 
+// ServerError writes a 500 Internal Server Error response.
+// Should be used for unexpected errors that are not the client's fault.
+func ServerError(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Server error - path: %s", r.URL.Path)
+	writeJSONError(w, http.StatusInternalServerError, "server_error")
+}
+
+// writeJSONError is a helper that writes a JSON error response.
+// Ensures consistent error formatting across all error responses.
+func writeJSONError(w http.ResponseWriter, statusCode int, errorCode string) {
 	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(http.StatusInternalServerError)
+	w.WriteHeader(statusCode)
 
-	resp := ErrorResponse{
-		Error: "server_error",
+	response := ErrorResponse{
+		Error: errorCode,
 	}
 
-	_ = json.NewEncoder(w).Encode(resp)
+	// If encoding fails, there's nothing more we can do
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode error response: %v", err)
+	}
+}
+
+// WriteClientError writes a 400 error response without exposing internal details.
+// DEPRECATED: Use BadRequest instead for new code.
+func WriteClientError(w http.ResponseWriter, logMessage string) {
+	log.Printf("Client error: %s", logMessage)
+	writeJSONError(w, http.StatusBadRequest, "invalid_request")
+}
+
+// WriteServerError writes a 500 error response without exposing internal details.
+// DEPRECATED: Use ServerError instead for new code.
+func WriteServerError(w http.ResponseWriter, logMessage string) {
+	log.Printf("Server error: %s", logMessage)
+	writeJSONError(w, http.StatusInternalServerError, "server_error")
 }
 
 // WriteJSONError writes a consistent JSON error response
