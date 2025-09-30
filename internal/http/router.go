@@ -4,7 +4,6 @@ package httpx
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -137,9 +136,7 @@ func GetConfigFromContext(ctx context.Context) (config.Config, bool) {
 }
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // loginHandler creates a login handler that redirects to Auth0 for authentication.
@@ -241,13 +238,10 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 // Reads and validates the signed redirect cookie, returning its contents.
 // This endpoint is disabled in production environments for security.
 func debugRedirectCookieHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())
 	if !ok {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "configuration not available",
 		})
 		return
@@ -269,16 +263,14 @@ func debugRedirectCookieHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and validate the redirect cookie
 	redirectURL, err := security.ReadSignedRedirectCookie(r, primaryKey, secondaryKey, time.Now(), cfg.RedirectSkew)
 	if err != nil {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, http.StatusOK, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	// Return successful result
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"url":   redirectURL,
 		"valid": true,
 	})

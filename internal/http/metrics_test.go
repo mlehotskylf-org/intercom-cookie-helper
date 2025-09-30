@@ -82,7 +82,7 @@ func TestMetricsHandler_DevEnvironment(t *testing.T) {
 
 	// Check content type
 	contentType := rec.Header().Get("Content-Type")
-	if contentType != "application/json" {
+	if contentType != "application/json; charset=utf-8" {
 		t.Errorf("expected Content-Type 'application/json', got '%s'", contentType)
 	}
 

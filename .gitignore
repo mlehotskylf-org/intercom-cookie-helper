@@ -7,6 +7,8 @@ coverage.out
 .vscode/
 internal/security/testdata/fuzz/
 
+# Claude Code local settings
+.claude/settings.local.json
 
 server
 server.log

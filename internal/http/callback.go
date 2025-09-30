@@ -4,7 +4,6 @@ package httpx
 
 import (
 	"crypto/subtle"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -254,15 +253,11 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 // writeCallbackError writes a standardized JSON error response for callback failures.
 // It ensures consistent error formatting and prevents information leakage.
 func writeCallbackError(w http.ResponseWriter, statusCode int, errorCode, errorMessage string) {
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(statusCode)
-
 	response := map[string]string{"error": errorCode}
 	if errorMessage != "" {
 		response["error_description"] = errorMessage
 	}
-
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, statusCode, response)
 }
 
 // renderErrorPage renders a user-friendly HTML error page for authentication failures.

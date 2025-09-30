@@ -13,8 +13,8 @@ const (
 
 // Content Types
 const (
-	// ContentTypeJSON is the MIME type for JSON responses
-	ContentTypeJSON = "application/json"
+	// ContentTypeJSON is the MIME type for JSON responses with UTF-8 charset
+	ContentTypeJSON = "application/json; charset=utf-8"
 	// ContentTypeHTML is the MIME type for HTML responses
 	ContentTypeHTML = "text/html; charset=utf-8"
 	// ContentTypeFormURLEncoded is the MIME type for URL-encoded form data

@@ -371,8 +371,8 @@ func TestLoginEndpoint(t *testing.T) {
 				}
 			} else {
 				// For non-redirects (error cases), expect JSON error response
-				if rec.Header().Get("Content-Type") != "application/json" {
-					t.Errorf("expected Content-Type 'application/json', got '%s'", rec.Header().Get("Content-Type"))
+				if rec.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+					t.Errorf("expected Content-Type 'application/json; charset=utf-8', got '%s'", rec.Header().Get("Content-Type"))
 				}
 
 				var response map[string]interface{}
@@ -508,8 +508,8 @@ func TestDebugRedirectCookieEndpoint(t *testing.T) {
 				return
 			}
 
-			if rec.Header().Get("Content-Type") != "application/json" {
-				t.Errorf("expected Content-Type 'application/json', got '%s'", rec.Header().Get("Content-Type"))
+			if rec.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+				t.Errorf("expected Content-Type 'application/json; charset=utf-8', got '%s'", rec.Header().Get("Content-Type"))
 			}
 
 			var response map[string]interface{}

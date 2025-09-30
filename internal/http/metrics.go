@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"encoding/json"
 	"net/http"
 	"sync/atomic"
 )
@@ -94,13 +93,5 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	snapshot := metrics.Snapshot()
-
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(snapshot); err != nil {
-		// If encoding fails, log but don't retry (already wrote headers)
-		// This is unlikely to happen with a simple struct
-		return
-	}
+	writeJSON(w, http.StatusOK, snapshot)
 }

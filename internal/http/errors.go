@@ -12,6 +12,17 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// writeJSON writes a JSON response with the proper content type and status code.
+// This helper ensures consistent JSON formatting and charset handling across all endpoints.
+func writeJSON(w http.ResponseWriter, statusCode int, v interface{}) {
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
+	w.WriteHeader(statusCode)
+
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("Failed to encode JSON response: %v", err)
+	}
+}
+
 // BadRequest writes a 400 Bad Request response with a generic error message.
 // The detailed reason is logged server-side but not exposed to the client.
 func BadRequest(w http.ResponseWriter, r *http.Request, reason string) {
@@ -36,17 +47,7 @@ func ServerError(w http.ResponseWriter, r *http.Request) {
 // writeJSONError is a helper that writes a JSON error response.
 // Ensures consistent error formatting across all error responses.
 func writeJSONError(w http.ResponseWriter, statusCode int, errorCode string) {
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(statusCode)
-
-	response := ErrorResponse{
-		Error: errorCode,
-	}
-
-	// If encoding fails, there's nothing more we can do
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode error response: %v", err)
-	}
+	writeJSON(w, statusCode, ErrorResponse{Error: errorCode})
 }
 
 // WriteClientError writes a 400 error response without exposing internal details.

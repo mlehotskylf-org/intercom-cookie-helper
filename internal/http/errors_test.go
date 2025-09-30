@@ -40,7 +40,7 @@ func TestBadRequest(t *testing.T) {
 
 			// Check Content-Type
 			contentType := rec.Header().Get("Content-Type")
-			if contentType != "application/json" {
+			if contentType != "application/json; charset=utf-8" {
 				t.Errorf("expected Content-Type 'application/json', got '%s'", contentType)
 			}
 
@@ -77,7 +77,7 @@ func TestTooManyRequests(t *testing.T) {
 
 	// Check Content-Type
 	contentType := rec.Header().Get("Content-Type")
-	if contentType != "application/json" {
+	if contentType != "application/json; charset=utf-8" {
 		t.Errorf("expected Content-Type 'application/json', got '%s'", contentType)
 	}
 
@@ -111,7 +111,7 @@ func TestServerError(t *testing.T) {
 
 	// Check Content-Type
 	contentType := rec.Header().Get("Content-Type")
-	if contentType != "application/json" {
+	if contentType != "application/json; charset=utf-8" {
 		t.Errorf("expected Content-Type 'application/json', got '%s'", contentType)
 	}
 

@@ -127,7 +127,7 @@ func TestRequireReferrerHost(t *testing.T) {
 			// Verify Content-Type header for error responses
 			if tt.expectedStatus == http.StatusBadRequest {
 				contentType := w.Header().Get("Content-Type")
-				if contentType != "application/json" {
+				if contentType != "application/json; charset=utf-8" {
 					t.Errorf("expected Content-Type 'application/json', got %q", contentType)
 				}
 			}
