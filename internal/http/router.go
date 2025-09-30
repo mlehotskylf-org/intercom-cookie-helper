@@ -45,10 +45,8 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Add config to request context
 	r.Use(configMiddleware(cfg))
 
-	// Add HSTS header if enabled
-	if cfg.EnableHSTS {
-		r.Use(hstsMiddleware)
-	}
+	// Add global security headers
+	r.Use(securityHeadersMiddleware(cfg))
 
 	// Routes
 	r.Get("/healthz", healthzHandler)
@@ -79,18 +77,41 @@ func configMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 	}
 }
 
-// hstsMiddleware adds the Strict-Transport-Security header.
-// Forces HTTPS for one year with subdomains included for security.
+// securityHeadersMiddleware adds global security headers to all responses.
+// These headers provide defense-in-depth security controls across all endpoints.
 // TODO(DevOps): Move to API Gateway/Load Balancer for centralized security policy
-func hstsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		next.ServeHTTP(w, r)
-	})
+func securityHeadersMiddleware(cfg config.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// TODO(DevOps): Move to API Gateway/Load Balancer
+			// Referrer-Policy controls how much referrer information is sent with requests
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+			// TODO(DevOps): Move to API Gateway/Load Balancer
+			// X-Content-Type-Options prevents MIME type sniffing attacks
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+
+			// TODO(DevOps): Move to API Gateway/Load Balancer
+			// Permissions-Policy disables unnecessary browser features
+			w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+			// HSTS is conditionally enabled based on config
+			// TODO(DevOps): Move to API Gateway/Load Balancer
+			if cfg.EnableHSTS {
+				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			}
+
+			// Skip CSP globally - the /callback route has its own Intercom-specific CSP
+			// General CSP should be set at API Gateway/Load Balancer level if needed
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
-// intercomSecurityHeadersMiddleware adds security headers for the Intercom identify page.
-// Includes CSP to allow Intercom assets while maintaining tight security policy.
+// intercomSecurityHeadersMiddleware adds route-specific CSP for the Intercom identify page.
+// This CSP allows Intercom assets while maintaining tight security policy.
+// Generic security headers are set by securityHeadersMiddleware globally.
 func intercomSecurityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Content Security Policy - Allow Intercom assets
@@ -103,11 +124,6 @@ func intercomSecurityHeadersMiddleware(next http.Handler) http.Handler {
 			"style-src 'self' 'unsafe-inline'; " +
 			"frame-ancestors 'none'"
 		w.Header().Set("Content-Security-Policy", csp)
-
-		// TODO(DevOps): Move these generic headers to API Gateway/Load Balancer
-		// They should apply to all routes, not just /callback
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
 
 		next.ServeHTTP(w, r)
 	})

@@ -587,17 +587,8 @@ func TestIntercomSecurityHeadersMiddleware(t *testing.T) {
 		}
 	}
 
-	// Check Referrer-Policy
-	referrerPolicy := rec.Header().Get("Referrer-Policy")
-	if referrerPolicy != "strict-origin-when-cross-origin" {
-		t.Errorf("expected Referrer-Policy 'strict-origin-when-cross-origin', got '%s'", referrerPolicy)
-	}
-
-	// Check X-Content-Type-Options
-	contentTypeOptions := rec.Header().Get("X-Content-Type-Options")
-	if contentTypeOptions != "nosniff" {
-		t.Errorf("expected X-Content-Type-Options 'nosniff', got '%s'", contentTypeOptions)
-	}
+	// Note: Referrer-Policy and X-Content-Type-Options are now set globally
+	// by securityHeadersMiddleware, so they're tested in other tests
 }
 
 func TestCallbackRouteHasSecurityHeaders(t *testing.T) {
@@ -653,7 +644,7 @@ func TestCallbackRouteHasSecurityHeaders(t *testing.T) {
 }
 
 func TestHealthzRouteNoIntercomHeaders(t *testing.T) {
-	// Verify /healthz route does NOT have Intercom-specific CSP
+	// Verify /healthz route does NOT have Intercom-specific CSP but HAS global security headers
 	cfg := config.Config{
 		Env:          "test",
 		AppHostname:  "localhost",
@@ -680,14 +671,145 @@ func TestHealthzRouteNoIntercomHeaders(t *testing.T) {
 		t.Errorf("expected no Content-Security-Policy header on /healthz route, got: %s", csp)
 	}
 
-	// /healthz should also NOT have the generic headers (until they move to gateway)
+	// /healthz SHOULD have global security headers (now applied to all routes)
 	referrerPolicy := rec.Header().Get("Referrer-Policy")
-	if referrerPolicy != "" {
-		t.Errorf("expected no Referrer-Policy header on /healthz route, got: %s", referrerPolicy)
+	if referrerPolicy != "strict-origin-when-cross-origin" {
+		t.Errorf("expected Referrer-Policy 'strict-origin-when-cross-origin' on /healthz, got: %s", referrerPolicy)
 	}
 
 	contentTypeOptions := rec.Header().Get("X-Content-Type-Options")
-	if contentTypeOptions != "" {
-		t.Errorf("expected no X-Content-Type-Options header on /healthz route, got: %s", contentTypeOptions)
+	if contentTypeOptions != "nosniff" {
+		t.Errorf("expected X-Content-Type-Options 'nosniff' on /healthz, got: %s", contentTypeOptions)
+	}
+
+	permissionsPolicy := rec.Header().Get("Permissions-Policy")
+	if permissionsPolicy != "geolocation=(), microphone=(), camera=()" {
+		t.Errorf("expected Permissions-Policy on /healthz, got: %s", permissionsPolicy)
+	}
+}
+
+func TestSecurityHeadersMiddleware(t *testing.T) {
+	tests := []struct {
+		name       string
+		enableHSTS bool
+		wantHSTS   bool
+	}{
+		{
+			name:       "HSTS enabled",
+			enableHSTS: true,
+			wantHSTS:   true,
+		},
+		{
+			name:       "HSTS disabled",
+			enableHSTS: false,
+			wantHSTS:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Config{
+				Env:          "test",
+				AppHostname:  "localhost",
+				Port:         "8080",
+				CookieDomain: ".localhost",
+				EnableHSTS:   tt.enableHSTS,
+				RedirectTTL:  30 * time.Minute,
+				SessionTTL:   24 * time.Hour,
+				LogLevel:     "info",
+			}
+			router := NewRouter(cfg)
+
+			req := httptest.NewRequest("GET", "/healthz", nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			// Check that all security headers are present
+			headers := map[string]string{
+				"Referrer-Policy":       "strict-origin-when-cross-origin",
+				"X-Content-Type-Options": "nosniff",
+				"Permissions-Policy":     "geolocation=(), microphone=(), camera=()",
+			}
+
+			for header, expectedValue := range headers {
+				got := rec.Header().Get(header)
+				if got != expectedValue {
+					t.Errorf("%s: expected '%s', got '%s'", header, expectedValue, got)
+				}
+			}
+
+			// Check HSTS conditionally
+			hsts := rec.Header().Get("Strict-Transport-Security")
+			if tt.wantHSTS {
+				expectedHSTS := "max-age=31536000; includeSubDomains"
+				if hsts != expectedHSTS {
+					t.Errorf("HSTS: expected '%s', got '%s'", expectedHSTS, hsts)
+				}
+			} else {
+				if hsts != "" {
+					t.Errorf("HSTS: expected no header when disabled, got '%s'", hsts)
+				}
+			}
+
+			// Verify no global CSP (only route-specific CSP for /callback)
+			csp := rec.Header().Get("Content-Security-Policy")
+			if csp != "" {
+				t.Errorf("expected no global CSP header, got: %s", csp)
+			}
+		})
+	}
+}
+
+func TestSecurityHeadersOnAllRoutes(t *testing.T) {
+	// Verify security headers are applied to all routes
+	cfg := config.Config{
+		Env:                "test",
+		AppHostname:        "localhost",
+		Port:               "8080",
+		CookieDomain:       ".localhost",
+		EnableHSTS:         true,
+		RedirectTTL:        30 * time.Minute,
+		SessionTTL:         24 * time.Hour,
+		LogLevel:           "info",
+		CookieSigningKey:   []byte("test-signing-key-32-bytes-long!"),
+		Auth0Domain:        "test.auth0.com",
+		Auth0ClientID:      "test-client-id",
+		Auth0ClientSecret:  "test-client-secret",
+		Auth0RedirectPath:  "/callback",
+		IntercomAppID:      "test-app-id",
+		IntercomJWTSecret:  []byte("test-jwt-secret"),
+		IntercomJWTTTL:     10 * time.Minute,
+		AllowedReturnHosts: []string{"example.com"},
+	}
+	router := NewRouter(cfg)
+
+	routes := []string{
+		"/healthz",
+		"/callback",
+		"/debug/redirect-cookie",
+		"/metrics/dev",
+	}
+
+	for _, route := range routes {
+		t.Run(route, func(t *testing.T) {
+			req := httptest.NewRequest("GET", route, nil)
+			req.Header.Set("Referer", "https://localhost/")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			// All routes should have global security headers
+			if got := rec.Header().Get("Referrer-Policy"); got != "strict-origin-when-cross-origin" {
+				t.Errorf("%s missing Referrer-Policy", route)
+			}
+			if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+				t.Errorf("%s missing X-Content-Type-Options", route)
+			}
+			if got := rec.Header().Get("Permissions-Policy"); got != "geolocation=(), microphone=(), camera=()" {
+				t.Errorf("%s missing Permissions-Policy", route)
+			}
+			if got := rec.Header().Get("Strict-Transport-Security"); got != "max-age=31536000; includeSubDomains" {
+				t.Errorf("%s missing HSTS", route)
+			}
+		})
 	}
 }
