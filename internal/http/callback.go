@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -228,7 +229,17 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Successfully rendered Intercom identify page for user %s", userInfo.Sub)
+	// Extract return host for logging (redact full URL for privacy)
+	returnHost := ""
+	if returnTo != "" {
+		if parsedURL, err := url.Parse(returnTo); err == nil {
+			returnHost = parsedURL.Host
+		}
+	}
+
+	// Log successful render with safe observability (no PII, no tokens/JWT)
+	log.Printf("Identify rendered - subject: %s, has_email: %v, return_host: %s",
+		userInfo.Sub, userInfo.Email != "", returnHost)
 }
 
 // writeCallbackError writes a standardized JSON error response for callback failures.
