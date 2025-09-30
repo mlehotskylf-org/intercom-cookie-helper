@@ -249,7 +249,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=https://example.com/path",
 			referer:        "https://malicious.com/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_referrer"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
@@ -257,7 +257,7 @@ func TestLoginEndpoint(t *testing.T) {
 			url:            "/login?return_to=https://example.com/path",
 			referer:        "http://localhost/",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_referrer"},
+			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{

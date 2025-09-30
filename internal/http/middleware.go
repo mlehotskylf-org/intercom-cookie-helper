@@ -1,7 +1,8 @@
 package httpx
 
 import (
-	"encoding/json"
+	"log"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -9,14 +10,25 @@ import (
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/security"
 )
 
-// RequireReferrerHost middleware validates the Referer header against allowed hosts
+// RequireReferrerHost middleware validates the Referer header against allowed hosts.
+// Enforces strict validation in production while allowing flexibility in development.
 func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			referer := r.Header.Get("Referer")
 
-			// Allow empty referer (some clients strip it)
+			// Handle empty referer
 			if referer == "" {
+				// In production, require referer for security
+				// In dev/staging, allow empty referer for testing convenience
+				if cfg.Env == "prod" {
+					log.Printf("event=ref_check ok=false reason=empty_referer path=%s", r.URL.Path)
+					BadRequest(w, r, "Referer header required in production")
+					return
+				}
+
+				// Dev/staging: allow empty referer
+				log.Printf("event=ref_check ok=true referer_host=empty path=%s env=%s", r.URL.Path, cfg.Env)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -24,36 +36,41 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 			// Parse the referer URL
 			refURL, err := url.Parse(referer)
 			if err != nil {
-				writeReferrerError(w)
+				log.Printf("event=ref_check ok=false reason=parse_error referer=%s path=%s", referer, r.URL.Path)
+				BadRequest(w, r, "Invalid Referer URL format")
 				return
 			}
 
-			// Ensure HTTPS scheme
+			// Require HTTPS scheme
 			if refURL.Scheme != "https" {
-				writeReferrerError(w)
+				log.Printf("event=ref_check ok=false reason=invalid_scheme scheme=%s referer_host=%s path=%s",
+					refURL.Scheme, refURL.Host, r.URL.Path)
+				BadRequest(w, r, "Referer must use HTTPS")
 				return
 			}
 
-			// Check if host is allowed
+			// Deny IP address literals (only allow domain names)
+			host := refURL.Host
+			// Strip port if present
+			if h, _, err := net.SplitHostPort(host); err == nil {
+				host = h
+			}
+			if net.ParseIP(host) != nil {
+				log.Printf("event=ref_check ok=false reason=ip_literal referer_host=%s path=%s", refURL.Host, r.URL.Path)
+				BadRequest(w, r, "Referer cannot be an IP address")
+				return
+			}
+
+			// Check if host is in allowlist
 			if !allow.IsAllowed(refURL.Host) {
-				writeReferrerError(w)
+				log.Printf("event=ref_check ok=false reason=not_allowed referer_host=%s path=%s", refURL.Host, r.URL.Path)
+				BadRequest(w, r, "Referer host not in allowlist")
 				return
 			}
 
-			// Referer is valid, continue to next handler
+			// Referer is valid
+			log.Printf("event=ref_check ok=true referer_host=%s path=%s", refURL.Host, r.URL.Path)
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// writeReferrerError writes a 400 JSON error response
-func writeReferrerError(w http.ResponseWriter) {
-	w.Header().Set(HeaderContentType, ContentTypeJSON)
-	w.WriteHeader(http.StatusBadRequest)
-
-	response := map[string]string{
-		"error": "invalid_referrer",
-	}
-
-	json.NewEncoder(w).Encode(response)
 }

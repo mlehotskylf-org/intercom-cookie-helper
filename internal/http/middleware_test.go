@@ -66,19 +66,19 @@ func TestRequireReferrerHost(t *testing.T) {
 			name:           "invalid http referer (not https)",
 			referer:        "http://example.com/path",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"invalid_referrer"}`,
+			expectedBody:   `{"error":"invalid_request"}`,
 		},
 		{
 			name:           "referer from disallowed host",
 			referer:        "https://malicious.com/path",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"invalid_referrer"}`,
+			expectedBody:   `{"error":"invalid_request"}`,
 		},
 		{
 			name:           "invalid referer URL",
 			referer:        "not-a-valid-url",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"invalid_referrer"}`,
+			expectedBody:   `{"error":"invalid_request"}`,
 		},
 		{
 			name:           "referer with query params and fragment",
@@ -90,7 +90,7 @@ func TestRequireReferrerHost(t *testing.T) {
 			name:           "referer from subdomain not in wildcard allowlist",
 			referer:        "https://sub.trusted.org/path",
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"invalid_referrer"}`,
+			expectedBody:   `{"error":"invalid_request"}`,
 		},
 	}
 
@@ -115,8 +115,8 @@ func TestRequireReferrerHost(t *testing.T) {
 				if err := json.Unmarshal([]byte(body), &response); err != nil {
 					t.Errorf("failed to parse error response JSON: %v", err)
 				}
-				if response["error"] != "invalid_referrer" {
-					t.Errorf("expected error 'invalid_referrer', got %q", response["error"])
+				if response["error"] != "invalid_request" {
+					t.Errorf("expected error 'invalid_request', got %q", response["error"])
 				}
 			} else {
 				if body != tt.expectedBody {
@@ -135,25 +135,203 @@ func TestRequireReferrerHost(t *testing.T) {
 	}
 }
 
-func TestWriteReferrerError(t *testing.T) {
-	w := httptest.NewRecorder()
-	writeReferrerError(w)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+func TestRequireReferrerHost_ProductionEmpty(t *testing.T) {
+	// Production environment should reject empty referer
+	cfg := config.Config{
+		Env:                "prod",
+		AllowedReturnHosts: []string{"example.com"},
 	}
 
-	contentType := w.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("expected Content-Type 'application/json', got %q", contentType)
+	allowlist, err := security.NewHostAllowlist(cfg.AllowedReturnHosts)
+	if err != nil {
+		t.Fatalf("failed to create allowlist: %v", err)
 	}
 
-	var response map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Errorf("failed to parse response JSON: %v", err)
+	handler := RequireReferrerHost(cfg, allowlist)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	// No Referer header set
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d in prod with empty referer, got %d", http.StatusBadRequest, rec.Code)
 	}
 
-	if response["error"] != "invalid_referrer" {
-		t.Errorf("expected error 'invalid_referrer', got %q", response["error"])
+	var response ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error != "invalid_request" {
+		t.Errorf("expected error 'invalid_request', got '%s'", response.Error)
+	}
+}
+
+func TestRequireReferrerHost_DevEmpty(t *testing.T) {
+	// Dev environment should allow empty referer
+	cfg := config.Config{
+		Env:                "dev",
+		AllowedReturnHosts: []string{"example.com"},
+	}
+
+	allowlist, err := security.NewHostAllowlist(cfg.AllowedReturnHosts)
+	if err != nil {
+		t.Fatalf("failed to create allowlist: %v", err)
+	}
+
+	handler := RequireReferrerHost(cfg, allowlist)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	// No Referer header set
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d in dev with empty referer, got %d", http.StatusOK, rec.Code)
+	}
+
+	if rec.Body.String() != "OK" {
+		t.Errorf("expected body 'OK', got '%s'", rec.Body.String())
+	}
+}
+
+func TestRequireReferrerHost_IPLiteral(t *testing.T) {
+	tests := []struct {
+		name    string
+		referer string
+	}{
+		{"IPv4", "https://192.168.1.1/page"},
+		{"IPv4 with port", "https://192.168.1.1:8080/page"},
+		{"IPv6", "https://[2001:db8::1]/page"},
+		{"IPv6 with port", "https://[2001:db8::1]:8080/page"},
+		{"localhost IP", "https://127.0.0.1/page"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Config{
+				Env:                "dev",
+				AllowedReturnHosts: []string{"example.com"},
+			}
+
+			allowlist, err := security.NewHostAllowlist(cfg.AllowedReturnHosts)
+			if err != nil {
+				t.Fatalf("failed to create allowlist: %v", err)
+			}
+
+			handler := RequireReferrerHost(cfg, allowlist)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest("GET", "/login", nil)
+			req.Header.Set("Referer", tt.referer)
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected status %d for IP literal, got %d", http.StatusBadRequest, rec.Code)
+			}
+
+			var response ErrorResponse
+			if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+				t.Fatalf("failed to decode error response: %v", err)
+			}
+
+			if response.Error != "invalid_request" {
+				t.Errorf("expected error 'invalid_request', got '%s'", response.Error)
+			}
+		})
+	}
+}
+
+func TestRequireReferrerHost_InvalidScheme(t *testing.T) {
+	tests := []struct {
+		name    string
+		referer string
+	}{
+		{"http", "http://example.com/page"},
+		{"ftp", "ftp://example.com/file"},
+		{"no scheme", "//example.com/page"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Config{
+				Env:                "dev",
+				AllowedReturnHosts: []string{"example.com"},
+			}
+
+			allowlist, err := security.NewHostAllowlist(cfg.AllowedReturnHosts)
+			if err != nil {
+				t.Fatalf("failed to create allowlist: %v", err)
+			}
+
+			handler := RequireReferrerHost(cfg, allowlist)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest("GET", "/login", nil)
+			req.Header.Set("Referer", tt.referer)
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected status %d for invalid scheme, got %d", http.StatusBadRequest, rec.Code)
+			}
+
+			var response ErrorResponse
+			if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+				t.Fatalf("failed to decode error response: %v", err)
+			}
+
+			if response.Error != "invalid_request" {
+				t.Errorf("expected error 'invalid_request', got '%s'", response.Error)
+			}
+		})
+	}
+}
+
+func TestRequireReferrerHost_HostNotAllowed(t *testing.T) {
+	cfg := config.Config{
+		Env:                "dev",
+		AllowedReturnHosts: []string{"example.com", "*.example.com"},
+	}
+
+	allowlist, err := security.NewHostAllowlist(cfg.AllowedReturnHosts)
+	if err != nil {
+		t.Fatalf("failed to create allowlist: %v", err)
+	}
+
+	handler := RequireReferrerHost(cfg, allowlist)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	req.Header.Set("Referer", "https://evil.com/page")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d for disallowed host, got %d", http.StatusBadRequest, rec.Code)
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if response.Error != "invalid_request" {
+		t.Errorf("expected error 'invalid_request', got '%s'", response.Error)
 	}
 }
