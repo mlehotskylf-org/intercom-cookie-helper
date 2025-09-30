@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/config"
 )
 
 // ErrorResponse represents a JSON error response.
@@ -100,3 +102,18 @@ const (
 	ErrCodeMissingReferer   = "missing_referer"
 	ErrCodeInvalidReferer   = "invalid_referer"
 )
+
+// ErrView is a shared error view model for rendering user-friendly error pages.
+// Provides consistent UX text and actionable links across all error scenarios.
+type ErrView struct {
+	Title      string // User-facing error title, e.g., "We couldn't sign you in"
+	Message    string // Short, friendly explanation of what went wrong
+	RetryURL   string // URL to retry the action, e.g., "/login?return_to=<safe>"
+	SupportURL string // Optional support/help link
+}
+
+// safeDefaultURL returns a safe default URL based on the app hostname.
+// Used as a fallback when no valid return URL is available.
+func safeDefaultURL(cfg config.Config) string {
+	return "https://" + cfg.AppHostname + "/"
+}

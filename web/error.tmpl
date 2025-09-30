@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authentication Error</title>
+    <meta name="robots" content="noindex">
+    <title>{{.Title}}</title>
     <style>
         * {
             margin: 0;
@@ -107,11 +108,11 @@
 <body>
     <div class="error-container">
         <div class="error-icon">!</div>
-        <h1>We couldn't sign you in</h1>
-        <p>{{if .ErrorMessage}}{{.ErrorMessage}}{{else}}Something went wrong during authentication. Please try again.{{end}}</p>
+        <h1>{{.Title}}</h1>
+        <p>{{.Message}}</p>
         <div class="button-group">
-            <a href="{{.TryAgainURL}}" class="btn btn-primary">Try again</a>
-            <a href="javascript:history.back()" class="btn btn-secondary">Back</a>
+            <a href="{{.RetryURL}}" class="btn btn-primary">Try again</a>
+            {{if .SupportURL}}<a href="{{.SupportURL}}" class="btn btn-secondary">Get help</a>{{end}}
         </div>
     </div>
 </body>
