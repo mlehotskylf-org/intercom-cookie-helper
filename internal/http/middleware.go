@@ -19,15 +19,11 @@ func RequireReferrerHost(cfg config.Config, allow *security.HostAllowlist) func(
 
 			// Handle empty referer
 			if referer == "" {
-				// In production, require referer for security
-				// In dev/staging, allow empty referer for testing convenience
-				if cfg.Env == "prod" {
-					log.Printf("event=ref_check ok=false reason=empty_referer path=%s", r.URL.Path)
-					BadRequest(w, r, "Referer header required in production")
-					return
-				}
-
-				// Dev/staging: allow empty referer
+				// Allow empty referer in all environments because:
+				// 1. return_to validation provides strong security (HTTPS, allowlist, port checks)
+				// 2. Modern browsers/widgets strip Referer for privacy (Referrer-Policy)
+				// 3. Blocking breaks legitimate users (Intercom widgets, browser extensions)
+				// 4. CSRF protection comes from SameSite cookies, not Referer validation
 				log.Printf("event=ref_check ok=true referer_host=empty path=%s env=%s", r.URL.Path, cfg.Env)
 				next.ServeHTTP(w, r)
 				return

@@ -136,7 +136,8 @@ func TestRequireReferrerHost(t *testing.T) {
 }
 
 func TestRequireReferrerHost_ProductionEmpty(t *testing.T) {
-	// Production environment should reject empty referer
+	// Production environment should ALLOW empty referer (changed policy)
+	// Empty referer is allowed because return_to validation provides security
 	cfg := config.Config{
 		Env:                "prod",
 		AllowedReturnHosts: []string{"example.com"},
@@ -149,6 +150,7 @@ func TestRequireReferrerHost_ProductionEmpty(t *testing.T) {
 
 	handler := RequireReferrerHost(cfg, allowlist)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
 	}))
 
 	req := httptest.NewRequest("GET", "/login", nil)
@@ -157,17 +159,12 @@ func TestRequireReferrerHost_ProductionEmpty(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d in prod with empty referer, got %d", http.StatusBadRequest, rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d in prod with empty referer, got %d", http.StatusOK, rec.Code)
 	}
 
-	var response ErrorResponse
-	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-		t.Fatalf("failed to decode error response: %v", err)
-	}
-
-	if response.Error != "invalid_request" {
-		t.Errorf("expected error 'invalid_request', got '%s'", response.Error)
+	if rec.Body.String() != "OK" {
+		t.Errorf("expected body 'OK', got '%s'", rec.Body.String())
 	}
 }
 
