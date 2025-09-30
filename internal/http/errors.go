@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/config"
 )
@@ -115,5 +116,16 @@ type ErrView struct {
 // safeDefaultURL returns a safe default URL based on the app hostname.
 // Used as a fallback when no valid return URL is available.
 func safeDefaultURL(cfg config.Config) string {
+	// Use HTTP for localhost in dev mode, HTTPS for everything else
+	if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
+		return "http://" + cfg.AppHostname + ":" + cfg.Port + "/"
+	}
 	return "https://" + cfg.AppHostname + "/"
+}
+
+// acceptsHTML checks if the request's Accept header indicates HTML is preferred.
+// Returns true if "text/html" is present in the Accept header.
+func acceptsHTML(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "text/html")
 }

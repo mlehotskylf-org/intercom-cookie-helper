@@ -137,14 +137,30 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		returnTo := r.URL.Query().Get("return_to")
 		if returnTo == "" {
 			metrics.LoginBadReturn.Add(1)
-			BadRequest(w, r, "Missing return_to parameter")
+			if acceptsHTML(r) {
+				renderErrorHTML(w, http.StatusBadRequest, ErrView{
+					Title:    "Can't start sign-in",
+					Message:  "The sign-in request is missing required information. Please try again from your application.",
+					RetryURL: safeDefaultURL(cfg),
+				})
+			} else {
+				BadRequest(w, r, "Missing return_to parameter")
+			}
 			return
 		}
 
 		sanitizedURL, err := sanitizer.SanitizeReturnURL(returnTo)
 		if err != nil {
 			metrics.LoginBadReturn.Add(1)
-			BadRequest(w, r, fmt.Sprintf("Invalid return_to URL: %v", err))
+			if acceptsHTML(r) {
+				renderErrorHTML(w, http.StatusBadRequest, ErrView{
+					Title:    "Can't start sign-in",
+					Message:  "We couldn't validate the page you came from. Please make sure you're signing in from a supported page.",
+					RetryURL: safeDefaultURL(cfg),
+				})
+			} else {
+				BadRequest(w, r, fmt.Sprintf("Invalid return_to URL: %v", err))
+			}
 			return
 		}
 

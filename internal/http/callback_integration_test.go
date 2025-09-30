@@ -303,6 +303,7 @@ func TestCallbackIntegration(t *testing.T) {
 
 				// Create request with different state
 				req := httptest.NewRequest("GET", "/callback?code=valid-code&state="+queryState, nil)
+				req.Header.Set("Accept", "text/html")
 
 				// Add transaction cookie with different state
 				txnCookie := createTestTxnCookie(
@@ -325,11 +326,11 @@ func TestCallbackIntegration(t *testing.T) {
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
 				// Should render error template
 				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
+				if !strings.Contains(body, "Can&#39;t complete sign-in") {
 					t.Error("Should render error template")
 				}
-				if !strings.Contains(strings.ToLower(body), "validation failed") {
-					t.Error("Should mention validation error")
+				if !strings.Contains(strings.ToLower(body), "security check failed") {
+					t.Error("Should mention security validation error")
 				}
 			},
 		},
@@ -353,6 +354,7 @@ func TestCallbackIntegration(t *testing.T) {
 
 				// Create request
 				req := httptest.NewRequest("GET", "/callback?code=invalid-code&state="+state, nil)
+				req.Header.Set("Accept", "text/html")
 
 				// Add valid transaction cookie
 				txnCookie := createTestTxnCookie(
@@ -375,10 +377,11 @@ func TestCallbackIntegration(t *testing.T) {
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
 				// Should render error template
 				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
+				if !strings.Contains(body, "Can&#39;t complete sign-in") {
 					t.Error("Should render error template")
 				}
-				if !strings.Contains(strings.ToLower(body), "authentication failed") {
+				// The apostrophe in "couldn't" is escaped as &#39; in HTML
+				if !strings.Contains(strings.ToLower(body), "couldn&#39;t verify") {
 					t.Error("Should mention authentication error")
 				}
 			},
@@ -393,6 +396,7 @@ func TestCallbackIntegration(t *testing.T) {
 
 				// Create request without transaction cookie
 				req := httptest.NewRequest("GET", "/callback?code=valid-code&state="+state, nil)
+				req.Header.Set("Accept", "text/html")
 
 				// Add config to context but no cookies
 				req = req.WithContext(withTestConfig(req.Context(), baseCfg))
@@ -403,11 +407,11 @@ func TestCallbackIntegration(t *testing.T) {
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
 				// Should render error template
 				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
+				if !strings.Contains(body, "Can&#39;t complete sign-in") {
 					t.Error("Should render error template")
 				}
-				if !strings.Contains(strings.ToLower(body), "session has expired") {
-					t.Error("Should mention session expiry")
+				if !strings.Contains(strings.ToLower(body), "no longer valid") {
+					t.Error("Should mention link is no longer valid")
 				}
 			},
 		},
@@ -427,6 +431,7 @@ func TestCallbackIntegration(t *testing.T) {
 
 				// Create request
 				req := httptest.NewRequest("GET", "/callback?code=valid-code&state="+state, nil)
+				req.Header.Set("Accept", "text/html")
 
 				// Add expired transaction cookie
 				expiredTime := time.Now().Add(-10 * time.Minute)
@@ -459,11 +464,11 @@ func TestCallbackIntegration(t *testing.T) {
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
 				// Should render error template
 				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
+				if !strings.Contains(body, "Can&#39;t complete sign-in") {
 					t.Error("Should render error template")
 				}
-				if !strings.Contains(strings.ToLower(body), "session has expired") {
-					t.Error("Should mention session expiry")
+				if !strings.Contains(strings.ToLower(body), "no longer valid") {
+					t.Error("Should mention link is no longer valid")
 				}
 			},
 		},
@@ -519,7 +524,7 @@ func TestCallbackIntegration_OAuthErrors(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
 				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
+				if !strings.Contains(body, "Can&#39;t complete sign-in") {
 					t.Error("Should render error template")
 				}
 				if !strings.Contains(strings.ToLower(body), "cancelled") {
@@ -533,7 +538,7 @@ func TestCallbackIntegration_OAuthErrors(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
 				body := rr.Body.String()
-				if !strings.Contains(body, "We couldn't sign you in") {
+				if !strings.Contains(body, "Can&#39;t complete sign-in") {
 					t.Error("Should render error template")
 				}
 			},
@@ -544,6 +549,7 @@ func TestCallbackIntegration_OAuthErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create request
 			req := httptest.NewRequest("GET", "/callback"+tt.queryParams, nil)
+			req.Header.Set("Accept", "text/html")
 			req = req.WithContext(withTestConfig(req.Context(), cfg))
 
 			// Create response recorder

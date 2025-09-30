@@ -31,6 +31,7 @@ func TestHandleCallback_ErrorPage_InvalidState(t *testing.T) {
 
 	// Create request with invalid state (no transaction cookie)
 	req := httptest.NewRequest("GET", "/callback?code=test-code&state=invalid-state", nil)
+	req.Header.Set("Accept", "text/html")
 	req = req.WithContext(withTestConfig(req.Context(), cfg))
 
 	// Create response recorder
@@ -52,17 +53,17 @@ func TestHandleCallback_ErrorPage_InvalidState(t *testing.T) {
 
 	// Check error page content
 	body := rr.Body.String()
-	if !strings.Contains(body, "We couldn't sign you in") {
-		t.Error("Error page should contain 'We couldn't sign you in'")
+	if !strings.Contains(body, "Can&#39;t complete sign-in") {
+		t.Error("Error page should contain 'Can't complete sign-in'")
 	}
-	if !strings.Contains(body, "Your session has expired") {
-		t.Error("Error page should contain 'Your session has expired' for missing transaction cookie")
+	if !strings.Contains(body, "This sign-in link is no longer valid") {
+		t.Error("Error page should contain 'This sign-in link is no longer valid' for missing transaction cookie")
 	}
-	if !strings.Contains(body, "Back") {
-		t.Error("Error page should contain 'Back' button")
+	if !strings.Contains(body, "Try again") {
+		t.Error("Error page should contain 'Try again' button")
 	}
-	if !strings.Contains(body, "https://example.com/") {
-		t.Error("Error page should contain link to return URL")
+	if !strings.Contains(body, "/login?return_to=https%3A%2F%2Fexample.com%2F") {
+		t.Error("Error page should contain link to retry URL")
 	}
 }
 
@@ -92,6 +93,7 @@ func TestHandleCallback_ErrorPage_StateMismatch(t *testing.T) {
 
 	// Create request with mismatched state
 	req := httptest.NewRequest("GET", "/callback?code=test-code&state=wrong-state", nil)
+	req.Header.Set("Accept", "text/html")
 	req = req.WithContext(withTestConfig(req.Context(), cfg))
 
 	// Add transaction cookie with different state
@@ -119,11 +121,11 @@ func TestHandleCallback_ErrorPage_StateMismatch(t *testing.T) {
 
 	// Check error page content
 	body := rr.Body.String()
-	if !strings.Contains(body, "We couldn't sign you in") {
-		t.Error("Error page should contain 'We couldn't sign you in'")
+	if !strings.Contains(body, "Can&#39;t complete sign-in") {
+		t.Error("Error page should contain 'Can't complete sign-in'")
 	}
-	if !strings.Contains(body, "Security validation failed") {
-		t.Error("Error page should contain 'Security validation failed' for state mismatch")
+	if !strings.Contains(body, "A security check failed") {
+		t.Error("Error page should contain 'A security check failed' for state mismatch")
 	}
 }
 
@@ -145,6 +147,7 @@ func TestHandleCallback_ErrorPage_MissingCode(t *testing.T) {
 
 	// Create request without code parameter
 	req := httptest.NewRequest("GET", "/callback?state=some-state", nil)
+	req.Header.Set("Accept", "text/html")
 	req = req.WithContext(withTestConfig(req.Context(), cfg))
 
 	// Create response recorder
@@ -160,10 +163,10 @@ func TestHandleCallback_ErrorPage_MissingCode(t *testing.T) {
 
 	// Check error page content
 	body := rr.Body.String()
-	if !strings.Contains(body, "We couldn't sign you in") {
-		t.Error("Error page should contain 'We couldn't sign you in'")
+	if !strings.Contains(body, "Can&#39;t complete sign-in") {
+		t.Error("Error page should contain 'Can't complete sign-in'")
 	}
-	if !strings.Contains(body, "Missing required authentication parameters") {
+	if !strings.Contains(body, "This sign-in link is no longer valid") {
 		t.Error("Error page should contain message about missing parameters")
 	}
 }
@@ -186,6 +189,7 @@ func TestHandleCallback_ErrorPage_Auth0Error(t *testing.T) {
 
 	// Create request with Auth0 error
 	req := httptest.NewRequest("GET", "/callback?error=access_denied&error_description=User+cancelled+login", nil)
+	req.Header.Set("Accept", "text/html")
 	req = req.WithContext(withTestConfig(req.Context(), cfg))
 
 	// Create response recorder
@@ -201,8 +205,8 @@ func TestHandleCallback_ErrorPage_Auth0Error(t *testing.T) {
 
 	// Check error page content
 	body := rr.Body.String()
-	if !strings.Contains(body, "We couldn't sign you in") {
-		t.Error("Error page should contain 'We couldn't sign you in'")
+	if !strings.Contains(body, "Can&#39;t complete sign-in") {
+		t.Error("Error page should contain 'Can't complete sign-in'")
 	}
 	if !strings.Contains(body, "User cancelled login") {
 		t.Error("Error page should contain the Auth0 error description")
@@ -227,6 +231,7 @@ func TestHandleCallback_ErrorPage_LocalhostConfig(t *testing.T) {
 
 	// Create request with invalid state
 	req := httptest.NewRequest("GET", "/callback?code=test&state=invalid", nil)
+	req.Header.Set("Accept", "text/html")
 	req = req.WithContext(withTestConfig(req.Context(), cfg))
 
 	// Create response recorder
@@ -240,9 +245,9 @@ func TestHandleCallback_ErrorPage_LocalhostConfig(t *testing.T) {
 		t.Errorf("Expected status 400, got %d", rr.Code)
 	}
 
-	// Check that Back URL uses HTTP for localhost
+	// Check that retry URL uses HTTP for localhost
 	body := rr.Body.String()
-	if !strings.Contains(body, "http://localhost:8080/") {
+	if !strings.Contains(body, "/login?return_to=http%3A%2F%2Flocalhost%3A8080%2F") {
 		t.Error("Error page should use HTTP scheme for localhost in dev mode")
 	}
 }

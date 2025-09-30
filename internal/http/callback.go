@@ -4,7 +4,6 @@ package httpx
 
 import (
 	"crypto/subtle"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -260,31 +259,37 @@ func writeCallbackError(w http.ResponseWriter, statusCode int, errorCode, errorM
 	writeJSON(w, statusCode, response)
 }
 
-// renderErrorPage renders a user-friendly HTML error page for authentication failures.
-// It provides a link back to the return URL (original destination).
+// renderErrorPage renders either HTML or JSON error based on Accept header.
+// Provides friendly error messages mapped to specific failure scenarios.
 func renderErrorPage(w http.ResponseWriter, r *http.Request, errorMessage string, cfg config.Config) {
-	// Build a safe default return URL
-	var defaultReturnURL string
-	if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
-		defaultReturnURL = fmt.Sprintf("http://%s:%s/", cfg.AppHostname, cfg.Port)
+	// Map error messages to user-friendly titles and messages
+	var title, message string
+	switch errorMessage {
+	case ErrorMsgSessionExpired, ErrorMsgMissingParams:
+		title = "Can't complete sign-in"
+		message = "This sign-in link is no longer valid. Please start the sign-in process again."
+	case ErrorMsgAuthFailed:
+		title = "Can't complete sign-in"
+		message = "We couldn't verify your sign-in. Please try again."
+	case ErrorMsgSecurityValidation, ErrorMsgTokenValidation:
+		title = "Can't complete sign-in"
+		message = "A security check failed. Please try again."
+	default:
+		title = "Can't complete sign-in"
+		message = errorMessage
+	}
+
+	// Build retry URL: /login with return_to pointing to safe default
+	retryURL := "/login?return_to=" + url.QueryEscape(safeDefaultURL(cfg))
+
+	// Check if HTML is accepted
+	if acceptsHTML(r) {
+		renderErrorHTML(w, http.StatusBadRequest, ErrView{
+			Title:    title,
+			Message:  message,
+			RetryURL: retryURL,
+		})
 	} else {
-		defaultReturnURL = fmt.Sprintf("https://%s/", cfg.AppHostname)
-	}
-
-	// Use the return URL directly (don't go back through login flow)
-	backURL := defaultReturnURL
-
-	// Create error context
-	errorCtx := ErrorContext{
-		ErrorMessage: errorMessage,
-		TryAgainURL:  backURL,
-	}
-
-	// Render the embedded error template
-	w.Header().Set(HeaderContentType, ContentTypeHTML)
-	w.WriteHeader(http.StatusBadRequest)
-	if err := ErrorTmpl.Execute(w, errorCtx); err != nil {
-		log.Printf("Failed to execute error template: %v", err)
-		// Don't write another response since headers may have been sent
+		BadRequest(w, r, message)
 	}
 }
