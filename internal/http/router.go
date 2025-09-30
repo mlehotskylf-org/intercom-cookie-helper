@@ -53,8 +53,8 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Login endpoint with referrer validation
 	r.With(RequireReferrerHost(cfg, sanitizer.Allow)).Get(RouteLogin, loginHandler(sanitizer))
 
-	// Callback endpoint - OAuth2 callback handler with Intercom security headers
-	r.With(intercomSecurityHeadersMiddleware).Get(RouteCallback, handleCallback)
+	// Callback endpoint - OAuth2 callback handler with Intercom-specific CSP
+	r.With(WithIdentifyCSP).Get(RouteCallback, handleCallback)
 
 	// Debug endpoints (only in non-prod environments)
 	if cfg.Env != "prod" {
@@ -106,26 +106,6 @@ func securityHeadersMiddleware(cfg config.Config) func(http.Handler) http.Handle
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// intercomSecurityHeadersMiddleware adds route-specific CSP for the Intercom identify page.
-// This CSP allows Intercom assets while maintaining tight security policy.
-// Generic security headers are set by securityHeadersMiddleware globally.
-func intercomSecurityHeadersMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Content Security Policy - Allow Intercom assets
-		// NOTE: This is route-specific CSP for /callback (Intercom identify page)
-		// Keep this in application as it requires knowledge of Intercom dependencies
-		csp := "default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com; " +
-			"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io wss://*.intercom.io; " +
-			"img-src 'self' data: https://*.intercomcdn.com; " +
-			"style-src 'self' 'unsafe-inline'; " +
-			"frame-ancestors 'none'"
-		w.Header().Set("Content-Security-Policy", csp)
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 // GetConfigFromContext retrieves the config from the request context.

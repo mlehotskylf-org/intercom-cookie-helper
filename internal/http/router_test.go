@@ -549,14 +549,14 @@ func TestDebugRedirectCookieEndpoint(t *testing.T) {
 	}
 }
 
-func TestIntercomSecurityHeadersMiddleware(t *testing.T) {
-	// Test the middleware in isolation
+func TestWithIdentifyCSP(t *testing.T) {
+	// Test the CSP middleware in isolation
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("test"))
 	})
 
-	wrapped := intercomSecurityHeadersMiddleware(testHandler)
+	wrapped := WithIdentifyCSP(testHandler)
 
 	req, err := http.NewRequest("GET", "/test", nil)
 	if err != nil {
@@ -576,7 +576,7 @@ func TestIntercomSecurityHeadersMiddleware(t *testing.T) {
 	requiredDirectives := []string{
 		"default-src 'self'",
 		"script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com",
-		"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io wss://*.intercom.io",
+		"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io",
 		"img-src 'self' data: https://*.intercomcdn.com",
 		"style-src 'self' 'unsafe-inline'",
 		"frame-ancestors 'none'",
@@ -587,8 +587,16 @@ func TestIntercomSecurityHeadersMiddleware(t *testing.T) {
 		}
 	}
 
-	// Note: Referrer-Policy and X-Content-Type-Options are now set globally
-	// by securityHeadersMiddleware, so they're tested in other tests
+	// Note: 'unsafe-inline' is required in script-src for the identify page template
+	// Future improvement: Use nonce-based CSP
+	if !strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+		t.Error("CSP must contain 'unsafe-inline' in script-src (required by template)")
+	}
+
+	// Verify that wss://*.intercom.io is NOT included (not needed)
+	if strings.Contains(csp, "wss://") {
+		t.Error("CSP should not contain websocket URLs in connect-src")
+	}
 }
 
 func TestCallbackRouteHasSecurityHeaders(t *testing.T) {
