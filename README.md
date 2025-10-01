@@ -15,15 +15,82 @@ source .env && make start
 
 The server starts on port 8080 (or `PORT` if set).
 
+## Deployment Requirements
+
+**This service must run behind a reverse proxy or API gateway that handles SSL/TLS termination.** The Go application provides the authentication logic only.
+
+### Infrastructure Requirements
+
+Your load balancer or reverse proxy must provide:
+
+1. **SSL/TLS Termination** - HTTPS on port 443 with valid certificates
+2. **HTTP Forwarding** - Forward requests to this service on port 8080
+3. **Host Header Preservation** - Pass the original `Host` header to the application
+4. **Domain Routing** - Route `intercom-auth.{project-domain}` subdomains to this service
+
+### Example Infrastructure Setup
+
+```
+Internet (HTTPS:443)
+    ↓
+Load Balancer / API Gateway
+    ↓ (SSL terminated, forwards HTTP)
+Intercom Cookie Helper (HTTP:8080)
+```
+
+### Required for Production
+
+- Set `ENV=prod` to enable HSTS and production security settings
+- Configure `ALLOWED_RETURN_HOSTS` with your project domains
+- Ensure `APP_HOSTNAME` matches your `intercom-auth.*` subdomain
+- Set `COOKIE_DOMAIN` to your eTLD+1 (e.g., `.riscv.org`)
+
+See [docs/GATEWAY_HEADERS.md](docs/GATEWAY_HEADERS.md) for load balancer configuration details including rate limiting and security headers.
+
+### Local Development (No Proxy Required)
+
+For local development, the service runs standalone on HTTP:
+
+```bash
+ENV=dev APP_HOSTNAME=localhost PORT=8080 make start
+# Access at http://localhost:8080
+```
+
 ## API Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /healthz` | Health check |
+| `GET /healthz` | Basic health check - returns `{"status":"ok"}` |
+| `GET /healthz?check=deep` | Deep health check - validates Auth0 connectivity, config completeness, and dependencies |
 | `GET /login?return_to=<url>` | Initiates OAuth2 authentication with Auth0 |
 | `GET /callback?code=<code>&state=<state>` | Handles OAuth2 callback from Auth0 |
 | `GET /logout` | Clears session cookies and shows logout page (configurable) |
 | `GET /metrics/dev` | Metrics endpoint (non-prod only) |
+
+### Health Check Details
+
+**Basic Health Check** (`GET /healthz`)
+- Returns 200 OK if service is running
+- Suitable for liveness probes in Kubernetes/Docker
+
+**Deep Health Check** (`GET /healthz?check=deep`)
+- Returns 200 OK if all checks pass, 503 if any fail
+- Validates:
+  - Configuration completeness (Auth0, Intercom, cookie settings)
+  - Auth0 domain reachability (HTTPS connectivity)
+  - Cookie signing key validity (minimum 32 bytes)
+- Suitable for readiness probes and deployment validation
+- Example response:
+  ```json
+  {
+    "status": "ok",
+    "checks": {
+      "auth0": "ok",
+      "config": "ok",
+      "cookie_key": "ok"
+    }
+  }
+  ```
 
 ## Configuration
 

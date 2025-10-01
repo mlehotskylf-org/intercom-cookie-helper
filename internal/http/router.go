@@ -120,10 +120,6 @@ func GetConfigFromContext(ctx context.Context) (config.Config, bool) {
 	return cfg, ok
 }
 
-func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 // loginHandler creates a login handler that redirects to Auth0 for authentication.
 // Sets redirect and transaction cookies before initiating OAuth2 flow with PKCE.
 // Validates return_to URL and referrer before processing.
