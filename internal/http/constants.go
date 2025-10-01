@@ -7,6 +7,8 @@ const (
 	RouteLogin = "/login"
 	// RouteCallback is the endpoint for OAuth2 callback handling
 	RouteCallback = "/callback"
+	// RouteLogout is the endpoint for clearing local session cookies
+	RouteLogout = "/logout"
 	// RouteHealth is the endpoint for health checks
 	RouteHealth = "/health"
 )
