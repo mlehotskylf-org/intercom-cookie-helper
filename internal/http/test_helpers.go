@@ -23,9 +23,8 @@ func newTestConfig() config.Config {
 		Auth0RedirectPath: "/callback",
 
 		// Intercom configuration
-		IntercomAppID:     "test-app-id",
-		IntercomJWTSecret: []byte("test-jwt-secret"),
-		IntercomJWTTTL:    10 * time.Minute,
+		IntercomAppID: "test-app-id",
+		// IntercomJWTSecret and IntercomJWTTTL removed - JWT now from Auth0 Action
 
 		// Cookie configuration
 		CookieSigningKey: []byte("test-signing-key-32-bytes-long!!"),

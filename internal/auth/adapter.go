@@ -6,10 +6,11 @@ import (
 
 // IdentifyPayload contains user identity information and redirect URL.
 type IdentifyPayload struct {
-	ReturnTo string
-	Subject  string
-	Email    string
-	Name     string
+	ReturnTo    string
+	Subject     string
+	Email       string
+	Name        string
+	IntercomJWT string // Pre-generated Intercom JWT from Auth0 Action
 }
 
 // IdentifyRenderer handles rendering the authentication response.

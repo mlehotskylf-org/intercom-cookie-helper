@@ -17,10 +17,11 @@ type jwtPayload struct {
 
 // idTokenClaims represents the ID token payload with user claims
 type idTokenClaims struct {
-	Sub   string `json:"sub"`             // Subject - unique user identifier
-	Email string `json:"email,omitempty"` // User's email address
-	Name  string `json:"name,omitempty"`  // User's display name
-	Nonce string `json:"nonce,omitempty"` // Nonce for replay protection
+	Sub         string `json:"sub"`                                      // Subject - unique user identifier
+	Email       string `json:"email,omitempty"`                          // User's email address
+	Name        string `json:"name,omitempty"`                           // User's display name
+	Nonce       string `json:"nonce,omitempty"`                          // Nonce for replay protection
+	IntercomJWT string `json:"http://lfx.dev/claims/intercom,omitempty"` // Pre-generated Intercom JWT from Auth0 Action
 }
 
 // ExtractNonceFromIDToken extracts the nonce claim from an ID token without validating the signature.
@@ -106,10 +107,11 @@ func ParseUserInfoFromIDToken(idToken string) (*UserInfo, error) {
 		return nil, fmt.Errorf("id token missing required sub claim")
 	}
 
-	// Return UserInfo struct
+	// Return UserInfo struct with Intercom JWT
 	return &UserInfo{
-		Sub:   claims.Sub,
-		Email: claims.Email,
-		Name:  claims.Name,
+		Sub:         claims.Sub,
+		Email:       claims.Email,
+		Name:        claims.Name,
+		IntercomJWT: claims.IntercomJWT,
 	}, nil
 }

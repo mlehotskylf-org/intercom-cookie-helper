@@ -93,8 +93,18 @@ func (m *MockAuth0Server) handleTokenExchange(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(m.TokenResponse)
 }
 
-// createMockIDToken creates a fake ID token for testing with the given nonce
+// createMockIDToken creates a fake ID token for testing with the given nonce.
+// Includes a mock Intercom JWT in the custom claim to simulate Auth0 Action behavior.
 func createMockIDToken(nonce string) string {
+	// Create a mock Intercom JWT (simulating what Auth0 Action would generate)
+	mockIntercomJWT, _ := auth.MintIntercomJWT([]byte("test-intercom-secret"), auth.IntercomClaims{
+		UserID: "auth0|123456",
+		Email:  "test@example.com",
+		Name:   "Test User",
+		Iat:    time.Now().Unix(),
+		Exp:    time.Now().Add(10 * time.Minute).Unix(),
+	})
+
 	// Create a simple JWT-like structure (header.payload.signature)
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{
@@ -105,7 +115,8 @@ func createMockIDToken(nonce string) string {
 		"aud":"test-client-id",
 		"exp":` + fmt.Sprintf("%d", time.Now().Add(time.Hour).Unix()) + `,
 		"iat":` + fmt.Sprintf("%d", time.Now().Unix()) + `,
-		"nonce":"` + nonce + `"
+		"nonce":"` + nonce + `",
+		"http://lfx.dev/claims/intercom":"` + mockIntercomJWT + `"
 	}`))
 	signature := base64.RawURLEncoding.EncodeToString([]byte("fake-signature"))
 
@@ -159,8 +170,6 @@ func TestCallbackIntegration(t *testing.T) {
 		TxnTTL:                    10 * time.Minute,
 		CookieDomain:              ".example.com",
 		IntercomAppID:             "test-app-id",
-		IntercomJWTSecret:         []byte("test-jwt-secret"),
-		IntercomJWTTTL:    10 * time.Minute,
 		Env:                       "test",
 		AppHostname:               "example.com",
 		Auth0RedirectPath:         "/callback",

@@ -59,7 +59,6 @@ func TestHealthzHandler_Deep_Success(t *testing.T) {
 		Auth0ClientID:     "test-client-id",
 		Auth0ClientSecret: "test-secret",
 		IntercomAppID:     "test-app-id",
-		IntercomJWTSecret: []byte("test-jwt-secret-with-sufficient-length"),
 		CookieDomain:      ".example.com",
 		CookieSigningKey:  []byte("0123456789abcdef0123456789abcdef"), // 32 bytes
 	}
@@ -169,7 +168,6 @@ func TestHealthzHandler_Deep_ShortCookieKey(t *testing.T) {
 		Auth0Domain:       "dev-test.us.auth0.com",
 		Auth0ClientID:     "test-client-id",
 		IntercomAppID:     "test-app-id",
-		IntercomJWTSecret: []byte("test-secret"),
 		CookieDomain:      ".example.com",
 		CookieSigningKey:  []byte("tooshort"), // Only 8 bytes
 	}
@@ -220,7 +218,6 @@ func TestValidateConfig(t *testing.T) {
 				Auth0Domain:       "test.auth0.com",
 				Auth0ClientID:     "client-id",
 				IntercomAppID:     "app-id",
-				IntercomJWTSecret: []byte("secret"),
 				AppHostname:       "localhost",
 				CookieDomain:      ".example.com",
 			},
@@ -231,7 +228,6 @@ func TestValidateConfig(t *testing.T) {
 			cfg: config.Config{
 				Auth0ClientID:     "client-id",
 				IntercomAppID:     "app-id",
-				IntercomJWTSecret: []byte("secret"),
 				AppHostname:       "localhost",
 				CookieDomain:      ".example.com",
 			},
@@ -242,7 +238,6 @@ func TestValidateConfig(t *testing.T) {
 			cfg: config.Config{
 				Auth0Domain:       "test.auth0.com",
 				IntercomAppID:     "app-id",
-				IntercomJWTSecret: []byte("secret"),
 				AppHostname:       "localhost",
 				CookieDomain:      ".example.com",
 			},
@@ -253,30 +248,18 @@ func TestValidateConfig(t *testing.T) {
 			cfg: config.Config{
 				Auth0Domain:       "test.auth0.com",
 				Auth0ClientID:     "client-id",
-				IntercomJWTSecret: []byte("secret"),
 				AppHostname:       "localhost",
 				CookieDomain:      ".example.com",
 			},
 			expectErr: true,
 		},
-		{
-			name: "missing Intercom JWT secret",
-			cfg: config.Config{
-				Auth0Domain:   "test.auth0.com",
-				Auth0ClientID: "client-id",
-				IntercomAppID: "app-id",
-				AppHostname:   "localhost",
-				CookieDomain:  ".example.com",
-			},
-			expectErr: true,
-		},
+		// "missing Intercom JWT secret" test removed - JWT now from Auth0 Action
 		{
 			name: "missing app hostname",
 			cfg: config.Config{
 				Auth0Domain:       "test.auth0.com",
 				Auth0ClientID:     "client-id",
 				IntercomAppID:     "app-id",
-				IntercomJWTSecret: []byte("secret"),
 				CookieDomain:      ".example.com",
 			},
 			expectErr: true,
@@ -287,7 +270,6 @@ func TestValidateConfig(t *testing.T) {
 				Auth0Domain:       "test.auth0.com",
 				Auth0ClientID:     "client-id",
 				IntercomAppID:     "app-id",
-				IntercomJWTSecret: []byte("secret"),
 				AppHostname:       "localhost",
 			},
 			expectErr: true,

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/auth"
 	"github.com/mlehotskylf-org/intercom-cookie-helper/internal/config"
 )
 
@@ -37,8 +38,6 @@ func TestCallbackRendererSuccess(t *testing.T) {
 		Auth0ClientSecret:        "test-client-secret",
 		Auth0RedirectPath:        "/callback",
 		IntercomAppID:            "test-app-id",
-		IntercomJWTSecret:        []byte("test-jwt-secret-key-for-intercom-identity"),
-		IntercomJWTTTL:           10 * time.Minute,
 		TxnTTL:                   10 * time.Minute,
 		TxnSkew:                  1 * time.Minute,
 	}
@@ -49,6 +48,15 @@ func TestCallbackRendererSuccess(t *testing.T) {
 	// Create a mock Auth0 server that returns ID token with user claims
 	mockAuth0 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/oauth/token" {
+			// Generate mock Intercom JWT (simulating Auth0 Action)
+			mockIntercomJWT, _ := auth.MintIntercomJWT([]byte("test-secret"), auth.IntercomClaims{
+				UserID: "auth0|renderer-test-123",
+				Email:  "renderer@example.com",
+				Name:   "Renderer Test User",
+				Iat:    time.Now().Unix(),
+				Exp:    time.Now().Add(10 * time.Minute).Unix(),
+			})
+
 			// Create ID token with specific user claims we'll verify in the output
 			expTime := time.Now().Add(time.Hour).Unix()
 			payloadJSON := fmt.Sprintf(`{
@@ -57,8 +65,9 @@ func TestCallbackRendererSuccess(t *testing.T) {
 				"email": "renderer@example.com",
 				"name": "Renderer Test User",
 				"aud": "test-client-id",
-				"exp": %d
-			}`, testNonce, expTime)
+				"exp": %d,
+				"http://lfx.dev/claims/intercom": "%s"
+			}`, testNonce, expTime, mockIntercomJWT)
 
 			header := makeBase64URL(`{"alg":"RS256","typ":"JWT"}`)
 			payload := makeBase64URL(payloadJSON)
@@ -193,8 +202,6 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 		Auth0ClientSecret:        "test-client-secret",
 		Auth0RedirectPath:        "/callback",
 		IntercomAppID:            "test-app-id",
-		IntercomJWTSecret:        []byte("test-jwt-secret-key-for-intercom-identity"),
-		IntercomJWTTTL:           10 * time.Minute,
 		TxnTTL:                   10 * time.Minute,
 		TxnSkew:                  1 * time.Minute,
 	}
@@ -205,6 +212,15 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 	// Create mock Auth0 server
 	mockAuth0 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/oauth/token" {
+			// Generate mock Intercom JWT
+			mockIntercomJWT, _ := auth.MintIntercomJWT([]byte("test-secret"), auth.IntercomClaims{
+				UserID: "auth0|fallback-user",
+				Email:  "fallback@example.com",
+				Name:   "Fallback User",
+				Iat:    time.Now().Unix(),
+				Exp:    time.Now().Add(10 * time.Minute).Unix(),
+			})
+
 			expTime := time.Now().Add(time.Hour).Unix()
 			payloadJSON := fmt.Sprintf(`{
 				"nonce": "%s",
@@ -212,8 +228,9 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 				"email": "fallback@example.com",
 				"name": "Fallback User",
 				"aud": "test-client-id",
-				"exp": %d
-			}`, fallbackNonce, expTime)
+				"exp": %d,
+				"http://lfx.dev/claims/intercom": "%s"
+			}`, fallbackNonce, expTime, mockIntercomJWT)
 
 			header := makeBase64URL(`{"alg":"RS256","typ":"JWT"}`)
 			payload := makeBase64URL(payloadJSON)
@@ -306,8 +323,6 @@ func TestCallbackRendererWithSpecialCharacters(t *testing.T) {
 		Auth0ClientSecret:        "test-client-secret",
 		Auth0RedirectPath:        "/callback",
 		IntercomAppID:            "test-app-id",
-		IntercomJWTSecret:        []byte("test-jwt-secret-key-for-intercom-identity"),
-		IntercomJWTTTL:           10 * time.Minute,
 		TxnTTL:                   10 * time.Minute,
 		TxnSkew:                  1 * time.Minute,
 	}
@@ -318,6 +333,15 @@ func TestCallbackRendererWithSpecialCharacters(t *testing.T) {
 	// Create mock with user data containing special characters
 	mockAuth0 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/oauth/token" {
+			// Generate mock Intercom JWT with special characters
+			mockIntercomJWT, _ := auth.MintIntercomJWT([]byte("test-secret"), auth.IntercomClaims{
+				UserID: "auth0|special-123",
+				Email:  "test+alias@example.com",
+				Name:   "O'Brien \"The\" User",
+				Iat:    time.Now().Unix(),
+				Exp:    time.Now().Add(10 * time.Minute).Unix(),
+			})
+
 			expTime := time.Now().Add(time.Hour).Unix()
 			// Name with apostrophe and quotes to test escaping
 			payloadJSON := fmt.Sprintf(`{
@@ -326,8 +350,9 @@ func TestCallbackRendererWithSpecialCharacters(t *testing.T) {
 				"email": "test+alias@example.com",
 				"name": "O'Brien \"The\" User",
 				"aud": "test-client-id",
-				"exp": %d
-			}`, specialNonce, expTime)
+				"exp": %d,
+				"http://lfx.dev/claims/intercom": "%s"
+			}`, specialNonce, expTime, mockIntercomJWT)
 
 			header := makeBase64URL(`{"alg":"RS256","typ":"JWT"}`)
 			payload := makeBase64URL(payloadJSON)

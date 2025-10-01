@@ -25,8 +25,6 @@ func TestHealthEndpoint(t *testing.T) {
 		Auth0ClientSecret: "test-secret",
 		Auth0RedirectPath: "/callback",
 		IntercomAppID:     "test-app",
-		IntercomJWTSecret: []byte("test-jwt"),
-		IntercomJWTTTL:    10 * time.Minute,
 		TxnTTL:            10 * time.Minute,
 		TxnSkew:           1 * time.Minute,
 		SessionTTL:        24 * time.Hour,
@@ -87,8 +85,6 @@ func TestHSTSHeader(t *testing.T) {
 				Auth0ClientSecret: "test-secret",
 				Auth0RedirectPath: "/callback",
 				IntercomAppID:     "test-app",
-				IntercomJWTSecret: []byte("test-jwt"),
-				IntercomJWTTTL:    10 * time.Minute,
 				TxnTTL:            10 * time.Minute,
 				TxnSkew:           1 * time.Minute,
 				SessionTTL:        24 * time.Hour,
@@ -184,8 +180,6 @@ func TestLoginEndpoint(t *testing.T) {
 		Auth0ClientSecret:  "test-client-secret",
 		Auth0RedirectPath:  "/callback",
 		IntercomAppID:      "test-app-id",
-		IntercomJWTSecret:  []byte("test-jwt-secret"),
-		IntercomJWTTTL:    10 * time.Minute,
 		TxnTTL:             10 * time.Minute,
 		TxnSkew:            1 * time.Minute,
 	}
@@ -616,8 +610,6 @@ func TestCallbackRouteHasSecurityHeaders(t *testing.T) {
 		Auth0ClientSecret:  "test-client-secret",
 		Auth0RedirectPath:  "/callback",
 		IntercomAppID:      "test-app-id",
-		IntercomJWTSecret:  []byte("test-jwt-secret"),
-		IntercomJWTTTL:     10 * time.Minute,
 		TxnTTL:             10 * time.Minute,
 		TxnSkew:            1 * time.Minute,
 	}
@@ -785,8 +777,6 @@ func TestSecurityHeadersOnAllRoutes(t *testing.T) {
 		Auth0ClientSecret:  "test-client-secret",
 		Auth0RedirectPath:  "/callback",
 		IntercomAppID:      "test-app-id",
-		IntercomJWTSecret:  []byte("test-jwt-secret"),
-		IntercomJWTTTL:     10 * time.Minute,
 		AllowedReturnHosts: []string{"example.com"},
 	}
 	router := NewRouter(cfg)

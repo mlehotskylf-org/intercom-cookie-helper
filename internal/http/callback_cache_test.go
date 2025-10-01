@@ -36,8 +36,6 @@ func TestCallbackCacheHeaders(t *testing.T) {
 		AllowedReturnHosts:    []string{"example.com"},
 		AllowedQueryParams:    []string{"utm_campaign"},
 		IntercomAppID:         "test-app-id",
-		IntercomJWTSecret:     []byte("test-jwt-secret"),
-		IntercomJWTTTL:        10 * time.Minute,
 		TxnTTL:                10 * time.Minute,
 		TxnSkew:               5 * time.Minute,
 		RedirectTTL:           30 * time.Minute,

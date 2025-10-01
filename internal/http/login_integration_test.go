@@ -84,8 +84,6 @@ func TestLoginToDebugIntegration(t *testing.T) {
 				Auth0ClientSecret:         "test-client-secret",
 				Auth0RedirectPath:         "/callback",
 				IntercomAppID:             "test-app-id",
-				IntercomJWTSecret:         []byte("test-jwt-secret"),
-				IntercomJWTTTL:            10 * time.Minute,
 				TxnTTL:                    10 * time.Minute,
 				TxnSkew:                   1 * time.Minute,
 			}
@@ -216,8 +214,6 @@ func TestLoginToDebugIntegrationWithKeyRotation(t *testing.T) {
 		Auth0ClientSecret:         "test-client-secret",
 		Auth0RedirectPath:         "/callback",
 		IntercomAppID:             "test-app-id",
-		IntercomJWTSecret:         []byte("test-jwt-secret"),
-		IntercomJWTTTL:    10 * time.Minute,
 		TxnTTL:                    10 * time.Minute,
 		TxnSkew:                   1 * time.Minute,
 	}
@@ -308,8 +304,6 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 		Auth0ClientSecret:  "test-client-secret",
 		Auth0RedirectPath:  "/callback",
 		IntercomAppID:      "test-app-id",
-		IntercomJWTSecret:  []byte("test-jwt-secret"),
-		IntercomJWTTTL:    10 * time.Minute,
 		TxnTTL:             10 * time.Minute,
 		TxnSkew:            1 * time.Minute,
 	}

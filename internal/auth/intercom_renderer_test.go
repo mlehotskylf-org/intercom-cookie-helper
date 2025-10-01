@@ -11,18 +11,34 @@ func TestIntercomRenderer_Render(t *testing.T) {
 	validSecret := []byte("test-secret-key-32-bytes-minimum!")
 	validAppID := "ic_test123"
 
+	// Helper to generate mock JWT (simulating Auth0 Action)
+	generateMockJWT := func(userID, email, name string) string {
+		jwt, err := MintIntercomJWT(validSecret, IntercomClaims{
+			UserID: userID,
+			Email:  email,
+			Name:   name,
+			Iat:    time.Now().Unix(),
+			Exp:    time.Now().Add(10 * time.Minute).Unix(),
+		})
+		if err != nil{
+			t.Fatalf("failed to mint mock JWT: %v", err)
+		}
+		return jwt
+	}
+
 	t.Run("successful HTML render", func(t *testing.T) {
+		mockJWT := generateMockJWT("auth0|12345", "user@example.com", "Test User")
+
 		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: validSecret,
-			TTL:    5 * time.Minute,
+			AppID: validAppID,
 		}
 
 		payload := IdentifyPayload{
-			ReturnTo: "https://app.example.com/complete-login",
-			Subject:  "auth0|12345",
-			Email:    "user@example.com",
-			Name:     "Test User",
+			ReturnTo:    "https://app.example.com/complete-login",
+			Subject:     "auth0|12345",
+			Email:       "user@example.com",
+			Name:        "Test User",
+			IntercomJWT: mockJWT, // JWT from Auth0 Action
 		}
 
 		w := httptest.NewRecorder()
@@ -83,7 +99,7 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 		jwt := body[jwtStart : jwtStart+jwtEnd]
 
-		// Verify the JWT
+		// Verify the JWT matches what we provided
 		claims, err := VerifyIntercomJWT(validSecret, jwt)
 		if err != nil {
 			t.Fatalf("failed to verify JWT from HTML: %v", err)
@@ -101,15 +117,16 @@ func TestIntercomRenderer_Render(t *testing.T) {
 	})
 
 	t.Run("minimal payload HTML", func(t *testing.T) {
+		mockJWT := generateMockJWT("user123", "", "")
+
 		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: validSecret,
-			// No TTL specified, should use default
+			AppID: validAppID,
 		}
 
 		payload := IdentifyPayload{
-			ReturnTo: "https://app.example.com/",
-			Subject:  "user123",
+			ReturnTo:    "https://app.example.com/",
+			Subject:     "user123",
+			IntercomJWT: mockJWT,
 			// No Email or Name
 		}
 
@@ -126,7 +143,7 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			t.Error("expected user_id in intercomSettings")
 		}
 
-		// Email and name should not be present
+		// Email and name should not be present in payload fields
 		if strings.Contains(body, `email:`) {
 			t.Error("email should not be present when not provided")
 		}
@@ -147,30 +164,19 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		if claims.UserID != payload.Subject {
 			t.Errorf("expected UserID %s, got %s", payload.Subject, claims.UserID)
 		}
-		if claims.Email != "" {
-			t.Errorf("expected empty Email, got %s", claims.Email)
-		}
-		if claims.Name != "" {
-			t.Errorf("expected empty Name, got %s", claims.Name)
-		}
-
-		// Check default TTL (10 minutes)
-		expectedExp := claims.Iat + 600 // 10 minutes in seconds
-		if claims.Exp != expectedExp {
-			t.Errorf("expected Exp %d, got %d", expectedExp, claims.Exp)
-		}
 	})
 
 	t.Run("missing app ID", func(t *testing.T) {
+		mockJWT := generateMockJWT("user123", "", "")
+
 		renderer := &IntercomRenderer{
-			AppID:  "", // Missing
-			Secret: validSecret,
-			TTL:    5 * time.Minute,
+			AppID: "", // Missing
 		}
 
 		payload := IdentifyPayload{
-			ReturnTo: "https://app.example.com/",
-			Subject:  "user123",
+			ReturnTo:    "https://app.example.com/",
+			Subject:     "user123",
+			IntercomJWT: mockJWT,
 		}
 
 		w := httptest.NewRecorder()
@@ -183,38 +189,38 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 	})
 
-	t.Run("missing secret", func(t *testing.T) {
+	t.Run("missing JWT", func(t *testing.T) {
 		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: nil, // Missing
-			TTL:    5 * time.Minute,
+			AppID: validAppID,
 		}
 
 		payload := IdentifyPayload{
-			ReturnTo: "https://app.example.com/",
-			Subject:  "user123",
+			ReturnTo:    "https://app.example.com/",
+			Subject:     "user123",
+			IntercomJWT: "", // Missing - should error
 		}
 
 		w := httptest.NewRecorder()
 		err := renderer.Render(w, payload)
 		if err == nil {
-			t.Fatal("expected error for missing secret")
+			t.Fatal("expected error for missing JWT")
 		}
-		if !strings.Contains(err.Error(), "secret is required") {
+		if !strings.Contains(err.Error(), "JWT is required") {
 			t.Errorf("unexpected error message: %v", err)
 		}
 	})
 
 	t.Run("missing subject", func(t *testing.T) {
+		mockJWT := generateMockJWT("user123", "", "")
+
 		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: validSecret,
-			TTL:    5 * time.Minute,
+			AppID: validAppID,
 		}
 
 		payload := IdentifyPayload{
-			ReturnTo: "https://app.example.com/",
-			Subject:  "", // Missing
+			ReturnTo:    "https://app.example.com/",
+			Subject:     "", // Missing
+			IntercomJWT: mockJWT,
 		}
 
 		w := httptest.NewRecorder()
@@ -228,15 +234,16 @@ func TestIntercomRenderer_Render(t *testing.T) {
 	})
 
 	t.Run("missing return URL", func(t *testing.T) {
+		mockJWT := generateMockJWT("user123", "", "")
+
 		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: validSecret,
-			TTL:    5 * time.Minute,
+			AppID: validAppID,
 		}
 
 		payload := IdentifyPayload{
-			ReturnTo: "", // Missing
-			Subject:  "user123",
+			ReturnTo:    "", // Missing
+			Subject:     "user123",
+			IntercomJWT: mockJWT,
 		}
 
 		w := httptest.NewRecorder()
@@ -250,17 +257,18 @@ func TestIntercomRenderer_Render(t *testing.T) {
 	})
 
 	t.Run("HTML escaping", func(t *testing.T) {
+		mockJWT := generateMockJWT("user123", "", "<script>alert('name')</script>")
+
 		renderer := &IntercomRenderer{
-			AppID:  validAppID,
-			Secret: validSecret,
-			TTL:    5 * time.Minute,
+			AppID: validAppID,
 		}
 
 		// Test with potentially malicious return URL
 		payload := IdentifyPayload{
-			ReturnTo: `https://example.com/"></script><script>alert('xss')</script>`,
-			Subject:  "user123",
-			Name:     `<script>alert('name')</script>`,
+			ReturnTo:    `https://example.com/"></script><script>alert('xss')</script>`,
+			Subject:     "user123",
+			Name:        `<script>alert('name')</script>`,
+			IntercomJWT: mockJWT,
 		}
 
 		w := httptest.NewRecorder()

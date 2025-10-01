@@ -13,12 +13,13 @@ import (
 	"time"
 )
 
-// UserInfo represents the user information from Auth0's userinfo endpoint.
-// Contains stable user identifiers and attributes needed for Intercom JWT generation.
+// UserInfo represents the user information from Auth0's userinfo endpoint or ID token.
+// Contains stable user identifiers and attributes needed for Intercom identification.
 type UserInfo struct {
-	Sub   string `json:"sub"`             // Unique user identifier from Auth0
-	Email string `json:"email,omitempty"` // User's email address if available
-	Name  string `json:"name,omitempty"`  // User's display name if available
+	Sub         string `json:"sub"`             // Unique user identifier from Auth0
+	Email       string `json:"email,omitempty"` // User's email address if available
+	Name        string `json:"name,omitempty"`  // User's display name if available
+	IntercomJWT string `json:"-"`               // Pre-generated Intercom JWT from Auth0 Action (not in JSON responses)
 }
 
 // FetchUserInfo retrieves user information from Auth0 using an access token.

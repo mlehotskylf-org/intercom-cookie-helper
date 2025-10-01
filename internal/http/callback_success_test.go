@@ -59,8 +59,6 @@ func TestHandleCallbackSuccess_TransactionCookieCleared(t *testing.T) {
 		TxnTTL:                    10 * time.Minute,
 		RedirectSkew:              5 * time.Minute,
 		IntercomAppID:             "test-app-id",
-		IntercomJWTSecret:         []byte("test-jwt-secret"),
-		IntercomJWTTTL:            10 * time.Minute,
 		CookieDomain:              ".example.com",
 		Env:                       "dev",
 		AppHostname:               "example.com",
@@ -187,15 +185,27 @@ func createTestRedirectCookie(t *testing.T, cfg config.Config, returnURL string)
 	return nil
 }
 
-// Helper to create a test ID token with nonce
+// Helper to create a test ID token with nonce and Intercom JWT
 func createTestIDToken(t *testing.T, nonce string) string {
 	t.Helper()
+
+	// Generate mock Intercom JWT (simulating Auth0 Action)
+	mockIntercomJWT, err := auth.MintIntercomJWT([]byte("test-secret"), auth.IntercomClaims{
+		UserID: "auth0|user123",
+		Email:  "",
+		Name:   "",
+		Iat:    time.Now().Unix(),
+		Exp:    time.Now().Add(10 * time.Minute).Unix(),
+	})
+	if err != nil {
+		t.Fatalf("failed to mint mock Intercom JWT: %v", err)
+	}
 
 	// Create a simple JWT-like structure (header.payload.signature)
 	// This is a simplified version for testing - real JWT would need proper signing
 	header := makeBase64URL(`{"alg":"RS256","typ":"JWT"}`)
 	expTime := time.Now().Add(time.Hour).Unix()
-	payloadJSON := fmt.Sprintf(`{"nonce":"%s","sub":"auth0|user123","aud":"test-client-id","exp":%d}`, nonce, expTime)
+	payloadJSON := fmt.Sprintf(`{"nonce":"%s","sub":"auth0|user123","aud":"test-client-id","exp":%d,"http://lfx.dev/claims/intercom":"%s"}`, nonce, expTime, mockIntercomJWT)
 	payload := makeBase64URL(payloadJSON)
 	signature := makeBase64URL("test-signature")
 
@@ -236,8 +246,6 @@ func TestHandleCallbackSuccess_WithoutRedirectCookie(t *testing.T) {
 		RedirectSkew:      5 * time.Minute,
 		CookieDomain:      ".example.com",
 		IntercomAppID:     "test-app-id",
-		IntercomJWTSecret: []byte("test-jwt-secret"),
-		IntercomJWTTTL:    10 * time.Minute,
 		AppHostname:       "example.com",
 		Auth0RedirectPath: "/callback",
 		Auth0Domain:       mockHost,
