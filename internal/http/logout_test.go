@@ -14,10 +14,11 @@ import (
 func TestLogoutHandler_NoAcceptHeader(t *testing.T) {
 	// Setup config
 	cfg := config.Config{
-		CookieDomain: "localhost",
-		AppHostname:  "localhost",
-		Port:         "8080",
-		Env:          "dev",
+		CookieDomain:  "localhost",
+		AppHostname:   "localhost",
+		Port:          "8080",
+		Env:           "dev",
+		EnableLogout: true,
 	}
 
 	// Create request without Accept header
@@ -75,7 +76,7 @@ func TestLogoutHandler_NoAcceptHeader(t *testing.T) {
 }
 
 func TestLogoutHandler_HTMLAccept(t *testing.T) {
-	// Setup config
+	// Setup config without Auth0 logout enabled
 	cfg := config.Config{
 		CookieDomain:      "localhost",
 		AppHostname:       "localhost",
@@ -83,6 +84,8 @@ func TestLogoutHandler_HTMLAccept(t *testing.T) {
 		Env:               "dev",
 		Auth0Domain:       "test.auth0.com",
 		Auth0ClientID:     "test-client-id",
+		EnableLogout:      true,
+		EnableAuth0Logout: false,
 	}
 
 	// Create request with Accept: text/html
@@ -140,10 +143,9 @@ func TestLogoutHandler_HTMLAccept(t *testing.T) {
 		"<!DOCTYPE html>",
 		"<title>Signed Out</title>",
 		"<h1>Signed out</h1>",
-		"You have been signed out from this helper",
+		"You have been signed out.",
 		"Return",
 		`<meta name="robots" content="noindex">`,
-		"Sign out of your account", // Auth0 logout link
 	}
 
 	for _, expected := range expectedStrings {
@@ -157,9 +159,58 @@ func TestLogoutHandler_HTMLAccept(t *testing.T) {
 		t.Error("Expected return URL to be http://localhost:8080/ for dev environment")
 	}
 
-	// Check that Auth0 logout URL is present
+	// Auth0 logout link should NOT be present when disabled
+	if strings.Contains(body, "Sign out of your account") {
+		t.Error("Auth0 logout link should not be present when EnableAuth0Logout is false")
+	}
+	if strings.Contains(body, "/v2/logout") {
+		t.Error("Auth0 logout URL should not be present when EnableAuth0Logout is false")
+	}
+}
+
+func TestLogoutHandler_HTMLAcceptWithAuth0Enabled(t *testing.T) {
+	// Setup config WITH Auth0 logout enabled
+	cfg := config.Config{
+		CookieDomain:      "localhost",
+		AppHostname:       "localhost",
+		Port:              "8080",
+		Env:               "dev",
+		Auth0Domain:       "test.auth0.com",
+		Auth0ClientID:     "test-client-id",
+		EnableLogout:      true,
+		EnableAuth0Logout: true,
+	}
+
+	// Create request with Accept: text/html
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.Header.Set("Accept", "text/html")
+	req = req.WithContext(withTestConfig(req.Context(), cfg))
+
+	// Create response recorder
+	rr := httptest.NewRecorder()
+
+	// Call handler
+	logoutHandler(rr, req)
+
+	// Should return 200 OK
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rr.Code)
+	}
+
+	// Check HTML body content
+	body := rr.Body.String()
+
+	// Auth0 logout link SHOULD be present when enabled
+	if !strings.Contains(body, "Sign out of your account") {
+		t.Error("Auth0 logout link should be present when EnableAuth0Logout is true")
+	}
 	if !strings.Contains(body, "/v2/logout") {
-		t.Error("Expected Auth0 logout URL to be present")
+		t.Error("Auth0 logout URL should be present when EnableAuth0Logout is true")
+	}
+
+	// Verify the full Auth0 URL is properly formatted
+	if !strings.Contains(body, "https://test.auth0.com/v2/logout?client_id=test-client-id") {
+		t.Error("Auth0 logout URL should be properly formatted with domain and client_id")
 	}
 }
 
@@ -172,6 +223,8 @@ func TestLogoutHandler_ProductionHTTPS(t *testing.T) {
 		Env:               "prod",
 		Auth0Domain:       "example.auth0.com",
 		Auth0ClientID:     "prod-client-id",
+		EnableLogout:      true,
+		EnableAuth0Logout: false,
 	}
 
 	// Create request with Accept: text/html
@@ -214,10 +267,11 @@ func TestLogoutHandler_NoConfig(t *testing.T) {
 func TestLogoutHandler_JSONAccept(t *testing.T) {
 	// Setup config
 	cfg := config.Config{
-		CookieDomain: "localhost",
-		AppHostname:  "localhost",
-		Port:         "8080",
-		Env:          "dev",
+		CookieDomain:  "localhost",
+		AppHostname:   "localhost",
+		Port:          "8080",
+		Env:           "dev",
+		EnableLogout: true,
 	}
 
 	// Create request with Accept: application/json (API client)
@@ -239,5 +293,113 @@ func TestLogoutHandler_JSONAccept(t *testing.T) {
 	// Body should be empty
 	if rr.Body.Len() != 0 {
 		t.Errorf("Expected empty body for JSON accept, got %d bytes", rr.Body.Len())
+	}
+}
+
+func TestLogoutHandler_WithReferer(t *testing.T) {
+	// Setup config with allowed hosts
+	cfg := config.Config{
+		CookieDomain:       ".example.com",
+		AppHostname:        "example.com",
+		Port:               "8080",
+		Env:                "prod",
+		EnableLogout:       true,
+		AllowedReturnHosts: []string{"example.com"},
+		AllowedReturnHostsPreprocessed: []config.ProcessedHost{
+			{Original: "example.com", Canonical: "example.com", IsWildcard: false},
+		},
+		AllowedQueryParams: []string{"utm_campaign", "utm_source"},
+	}
+
+	// Create request with valid HTTPS Referer header
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Referer", "https://example.com/some-page")
+	req = req.WithContext(withTestConfig(req.Context(), cfg))
+
+	// Create response recorder
+	rr := httptest.NewRecorder()
+
+	// Call handler
+	logoutHandler(rr, req)
+
+	// Should return 200 OK
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rr.Code)
+	}
+
+	// Check that return URL uses the Referer (sanitizer returns HTTPS URLs)
+	body := rr.Body.String()
+	if !strings.Contains(body, "https://example.com/some-page") {
+		t.Error("Expected return URL to use Referer header")
+	}
+}
+
+func TestLogoutHandler_Disabled(t *testing.T) {
+	// Setup config with logout DISABLED
+	cfg := config.Config{
+		CookieDomain:  "localhost",
+		AppHostname:   "localhost",
+		Port:          "8080",
+		Env:           "dev",
+		EnableLogout: false,
+	}
+
+	// Create request
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.Header.Set("Accept", "text/html")
+	req = req.WithContext(withTestConfig(req.Context(), cfg))
+
+	// Create response recorder
+	rr := httptest.NewRecorder()
+
+	// Call handler
+	logoutHandler(rr, req)
+
+	// Should return 404 Not Found when disabled
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404 when logout disabled, got %d", rr.Code)
+	}
+}
+
+func TestLogoutHandler_WithInvalidReferer(t *testing.T) {
+	// Setup config with allowed hosts
+	cfg := config.Config{
+		CookieDomain:       "localhost",
+		AppHostname:        "localhost",
+		Port:               "8080",
+		Env:                "dev",
+		EnableLogout:       true,
+		AllowedReturnHosts: []string{"localhost"},
+		AllowedReturnHostsPreprocessed: []config.ProcessedHost{
+			{Original: "localhost", Canonical: "localhost", IsWildcard: false},
+		},
+		AllowedQueryParams: []string{"utm_campaign", "utm_source"},
+	}
+
+	// Create request with disallowed Referer
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Referer", "http://evil.com/phishing")
+	req = req.WithContext(withTestConfig(req.Context(), cfg))
+
+	// Create response recorder
+	rr := httptest.NewRecorder()
+
+	// Call handler
+	logoutHandler(rr, req)
+
+	// Should return 200 OK
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rr.Code)
+	}
+
+	// Check that return URL falls back to safe default (not evil.com)
+	body := rr.Body.String()
+	if strings.Contains(body, "evil.com") {
+		t.Error("Should not use disallowed Referer URL")
+	}
+	if !strings.Contains(body, "http://localhost:8080/") {
+		t.Error("Should fall back to safe default URL")
 	}
 }

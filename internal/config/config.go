@@ -83,6 +83,12 @@ type Config struct {
 
 	// Enable HSTS - default false in dev, true in prod
 	EnableHSTS bool
+
+	// Enable /logout endpoint - default false
+	EnableLogout bool
+
+	// Enable Auth0 IdP logout link - default false (requires Allowed Logout URLs in Auth0)
+	EnableAuth0Logout bool
 }
 
 // ProcessedHost represents a processed host pattern for fast matching
@@ -203,6 +209,12 @@ func FromEnv() (Config, error) {
 
 	// HSTS - default based on environment
 	cfg.EnableHSTS = parseBool("ENABLE_HSTS", cfg.Env == "prod")
+
+	// Logout endpoint - default false
+	cfg.EnableLogout = parseBool("ENABLE_LOGOUT", false)
+
+	// Auth0 IdP logout - default false (requires Auth0 configuration)
+	cfg.EnableAuth0Logout = parseBool("ENABLE_AUTH0_LOGOUT", false)
 
 	return cfg, nil
 }

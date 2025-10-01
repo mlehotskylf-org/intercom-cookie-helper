@@ -19,6 +19,12 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if logout is enabled
+	if !cfg.EnableLogout {
+		http.NotFound(w, r)
+		return
+	}
+
 	// Clear transaction cookie (even if not present)
 	txnOpts := auth.TxnOpts{
 		Domain:     cfg.CookieDomain,
@@ -38,7 +44,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if HTML is accepted
 	if acceptsHTML(r) {
 		// Render HTML logout page
-		renderLogoutHTML(w, cfg)
+		renderLogoutHTML(w, r, cfg)
 	} else {
 		// Return 204 No Content for API clients
 		w.WriteHeader(http.StatusNoContent)
@@ -46,14 +52,40 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderLogoutHTML renders a simple logout confirmation page.
-func renderLogoutHTML(w http.ResponseWriter, cfg config.Config) {
+func renderLogoutHTML(w http.ResponseWriter, r *http.Request, cfg config.Config) {
 	w.Header().Set(HeaderContentType, ContentTypeHTML)
 	w.WriteHeader(http.StatusOK)
 
-	returnURL := safeDefaultURL(cfg)
+	// Try to get return URL from Referer header, fall back to safe default
+	returnURL := r.Header.Get("Referer")
+	if returnURL == "" {
+		returnURL = safeDefaultURL(cfg)
+	} else {
+		// Validate and sanitize the referer URL
+		sanitizer, err := cfg.BuildSanitizer()
+		if err != nil {
+			// If sanitizer can't be built, use safe default
+			returnURL = safeDefaultURL(cfg)
+		} else {
+			// Try to sanitize the referer - if it fails, use safe default
+			sanitized, err := sanitizer.SanitizeReturnURL(returnURL)
+			if err != nil {
+				returnURL = safeDefaultURL(cfg)
+			} else {
+				returnURL = sanitized
+			}
+		}
+	}
 
-	// Build Auth0 IdP logout URL (optional link for users who want to sign out of Auth0)
-	auth0LogoutURL := auth.BuildAuth0LogoutURL(cfg.Auth0Domain, cfg.Auth0ClientID, returnURL)
+	// Build Auth0 IdP logout link section (only if enabled)
+	auth0LinkSection := ""
+	if cfg.EnableAuth0Logout {
+		auth0LogoutURL := auth.BuildAuth0LogoutURL(cfg.Auth0Domain, cfg.Auth0ClientID, returnURL)
+		auth0LinkSection = `
+        <div class="link">
+            <a href="` + auth0LogoutURL + `">Sign out of your account</a>
+        </div>`
+	}
 
 	html := `<!DOCTYPE html>
 <html lang="en">
@@ -130,13 +162,10 @@ func renderLogoutHTML(w http.ResponseWriter, cfg config.Config) {
 <body>
     <div class="container">
         <h1>Signed out</h1>
-        <p>You have been signed out from this helper.</p>
+        <p>You have been signed out.</p>
         <div class="buttons">
             <a href="` + returnURL + `" class="button">Return</a>
-        </div>
-        <div class="link">
-            <a href="` + auth0LogoutURL + `">Sign out of your account</a>
-        </div>
+        </div>` + auth0LinkSection + `
     </div>
 </body>
 </html>`

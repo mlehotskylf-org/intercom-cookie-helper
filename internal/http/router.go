@@ -56,8 +56,10 @@ func NewRouter(cfg config.Config) http.Handler {
 	// Callback endpoint - OAuth2 callback handler with Intercom-specific CSP
 	r.With(WithIdentifyCSP).Get(RouteCallback, handleCallback)
 
-	// Logout endpoint - clears local session cookies
-	r.Get(RouteLogout, logoutHandler)
+	// Logout endpoint - conditionally enabled (clears local session cookies)
+	if cfg.EnableLogout {
+		r.Get(RouteLogout, logoutHandler)
+	}
 
 	// Debug endpoints (only in non-prod environments)
 	if cfg.Env != "prod" {
