@@ -86,8 +86,10 @@ func (r *IntercomRenderer) Render(w http.ResponseWriter, p IdentifyPayload) erro
 		ReturnTo: p.ReturnTo,
 	}
 
-	// Set content type
+	// Set headers
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 
 	// Execute template
 	if err := intercomTemplate.Execute(w, data); err != nil {

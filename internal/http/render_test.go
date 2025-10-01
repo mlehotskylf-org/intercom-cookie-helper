@@ -28,7 +28,7 @@ func TestRenderErrorHTML(t *testing.T) {
 			},
 			expectStatus:       http.StatusBadRequest,
 			expectContentType:  ContentTypeHTML,
-			expectCacheControl: "no-store",
+			expectCacheControl: "no-store, max-age=0",
 			expectInBody: []string{
 				"Invalid Request",
 				"The request was malformed. Please try again.",
@@ -49,7 +49,7 @@ func TestRenderErrorHTML(t *testing.T) {
 			},
 			expectStatus:       http.StatusInternalServerError,
 			expectContentType:  ContentTypeHTML,
-			expectCacheControl: "no-store",
+			expectCacheControl: "no-store, max-age=0",
 			expectInBody: []string{
 				"Server Error",
 				"An unexpected error occurred. Please try again later.",
@@ -68,7 +68,7 @@ func TestRenderErrorHTML(t *testing.T) {
 			},
 			expectStatus:       http.StatusUnauthorized,
 			expectContentType:  ContentTypeHTML,
-			expectCacheControl: "no-store",
+			expectCacheControl: "no-store, max-age=0",
 			expectInBody: []string{
 				"Unauthorized",
 				"Your session has expired. Please sign in again.",
@@ -127,7 +127,8 @@ func TestRenderErrorHTML_Headers(t *testing.T) {
 	// Verify all required headers are set
 	headers := map[string]string{
 		"Content-Type":  ContentTypeHTML,
-		"Cache-Control": "no-store",
+		"Cache-Control": "no-store, max-age=0",
+		"Pragma":        "no-cache",
 	}
 
 	for header, expectedValue := range headers {

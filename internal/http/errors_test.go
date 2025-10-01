@@ -261,3 +261,23 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+func TestNoStore(t *testing.T) {
+	// Test that noStore sets the correct cache headers
+	rec := httptest.NewRecorder()
+
+	// Call noStore
+	noStore(rec)
+
+	// Verify Cache-Control header
+	cacheControl := rec.Header().Get("Cache-Control")
+	if cacheControl != "no-store, max-age=0" {
+		t.Errorf("Expected Cache-Control: no-store, max-age=0, got %s", cacheControl)
+	}
+
+	// Verify Pragma header
+	pragma := rec.Header().Get("Pragma")
+	if pragma != "no-cache" {
+		t.Errorf("Expected Pragma: no-cache, got %s", pragma)
+	}
+}

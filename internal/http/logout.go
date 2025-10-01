@@ -38,8 +38,8 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Clear redirect cookie (even if not present)
 	security.ClearRedirectCookie(w, cfg.CookieDomain)
 
-	// Set Cache-Control header
-	w.Header().Set("Cache-Control", "no-store")
+	// Prevent caching of auth pages
+	noStore(w)
 
 	// Check if HTML is accepted
 	if acceptsHTML(r) {

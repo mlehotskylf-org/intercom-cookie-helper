@@ -15,6 +15,14 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// noStore sets cache control headers to prevent page caching.
+// This prevents sensitive auth pages from being cached in browser back/forward cache.
+// Sets Cache-Control: no-store, max-age=0 and Pragma: no-cache.
+func noStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+}
+
 // writeJSON writes a JSON response with the proper content type and status code.
 // This helper ensures consistent JSON formatting and charset handling across all endpoints.
 func writeJSON(w http.ResponseWriter, statusCode int, v interface{}) {

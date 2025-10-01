@@ -38,7 +38,7 @@ func init() {
 func renderErrorHTML(w http.ResponseWriter, status int, v ErrView) {
 	// Set headers before writing status
 	w.Header().Set(HeaderContentType, ContentTypeHTML)
-	w.Header().Set("Cache-Control", "no-store")
+	noStore(w)
 	w.WriteHeader(status)
 
 	// If template failed to load, write a basic error message

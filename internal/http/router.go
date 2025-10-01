@@ -131,6 +131,9 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		metrics.LoginStart.Add(1)
 
+		// Prevent caching of auth pages
+		noStore(w)
+
 		// Get config from context
 		cfg, ok := GetConfigFromContext(r.Context())
 		if !ok {

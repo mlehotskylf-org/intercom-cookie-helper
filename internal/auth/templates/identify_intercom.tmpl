@@ -36,11 +36,24 @@ body {
   font-size: 18px;
   font-weight: 500;
 }
+.fallback {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #666;
+}
+.fallback a {
+  color: #667eea;
+  text-decoration: none;
+}
+.fallback a:hover {
+  text-decoration: underline;
+}
 </style>
 </head><body>
 <div class="container">
   <div class="spinner"></div>
   <p class="message">Signing you in to chat…</p>
+  <p class="fallback">If you're not redirected, <a href="{{.ReturnTo}}">Continue</a>.</p>
 </div>
 <script>
   window.intercomSettings = {

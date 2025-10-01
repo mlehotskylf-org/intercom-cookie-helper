@@ -38,8 +38,14 @@ func TestLogoutHandler_NoAcceptHeader(t *testing.T) {
 
 	// Check Cache-Control header
 	cacheControl := rr.Header().Get("Cache-Control")
-	if cacheControl != "no-store" {
-		t.Errorf("Expected Cache-Control: no-store, got %s", cacheControl)
+	if cacheControl != "no-store, max-age=0" {
+		t.Errorf("Expected Cache-Control: no-store, max-age=0, got %s", cacheControl)
+	}
+
+	// Check Pragma header
+	pragma := rr.Header().Get("Pragma")
+	if pragma != "no-cache" {
+		t.Errorf("Expected Pragma: no-cache, got %s", pragma)
 	}
 
 	// Check that both cookies are cleared
@@ -112,8 +118,14 @@ func TestLogoutHandler_HTMLAccept(t *testing.T) {
 
 	// Check Cache-Control header
 	cacheControl := rr.Header().Get("Cache-Control")
-	if cacheControl != "no-store" {
-		t.Errorf("Expected Cache-Control: no-store, got %s", cacheControl)
+	if cacheControl != "no-store, max-age=0" {
+		t.Errorf("Expected Cache-Control: no-store, max-age=0, got %s", cacheControl)
+	}
+
+	// Check Pragma header
+	pragma := rr.Header().Get("Pragma")
+	if pragma != "no-cache" {
+		t.Errorf("Expected Pragma: no-cache, got %s", pragma)
 	}
 
 	// Check that both cookies are cleared

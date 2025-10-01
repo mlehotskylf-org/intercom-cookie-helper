@@ -28,6 +28,9 @@ type ErrorContext struct {
 func handleCallback(w http.ResponseWriter, r *http.Request) {
 	metrics.CbStart.Add(1)
 
+	// Prevent caching of auth pages
+	noStore(w)
+
 	// Get config from context
 	cfg, ok := GetConfigFromContext(r.Context())
 	if !ok {
