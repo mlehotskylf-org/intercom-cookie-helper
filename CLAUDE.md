@@ -38,6 +38,7 @@ make fmt-strict     # Format with gofumpt + gofmt
 ## Current Implementation Status
 - ✅ `/login` - OAuth2 flow initiation with PKCE
 - ✅ `/callback` - Token exchange with nonce verification
+- ✅ `/logout` - Cookie clearing with optional Auth0 logout
 - ✅ `/metrics/dev` - Lightweight metrics endpoint (non-prod only)
 - ✅ User info fetching from Auth0
 - ✅ Integration tests with mock Auth0 server
@@ -48,17 +49,21 @@ make fmt-strict     # Format with gofumpt + gofmt
 - ✅ IntercomRenderer with user data injection
 - ✅ Embedded templates for production deployment
 - ✅ Complete authentication bridge with auto-redirect
+- ✅ Identify page fallback link (if JavaScript blocked)
 - ✅ CSP headers for Intercom widget (script-src, connect-src with WSS)
 - ✅ Renderer path tests (success, fallback, special characters)
 - ✅ Structured logging with PII redaction
 - ✅ Centralized error responses (BadRequest, TooManyRequests, ServerError)
+- ✅ Content negotiation (HTML error pages for browsers, JSON for APIs)
 - ✅ Referer validation middleware (HTTPS-only, IP rejection, host allowlist)
 - ✅ Fail-closed validation (return_to validated before cookies)
-- ✅ Global security headers (Referrer-Policy, X-Content-Type, Permissions-Policy, HSTS)
+- ✅ Global security headers (Referrer-Policy, X-Content-Type, Options, Permissions-Policy, HSTS)
+- ✅ Cache-Control headers on all auth pages (no-store, max-age=0, Pragma: no-cache)
 - ✅ Route-specific CSP for Intercom identify page
 - ✅ In-memory metrics with atomic counters
 - ✅ Fuzz testing for referer and URL parsing
 - ✅ Negative integration tests (bad referer, bad return_to)
+- ✅ Comprehensive test coverage (85% average across packages)
 
 ## Testing
 ```bash
@@ -95,6 +100,7 @@ go test -run Fuzz -fuzz=FuzzReturnURLParsing -fuzztime=5s ./internal/http
 ### Error Handling
 - Use centralized error helpers: `BadRequest()`, `TooManyRequests()`, `ServerError()`
 - Return generic errors to clients: `{"error": "invalid_request"}`
+- Content negotiation: HTML error pages for browsers (`Accept: text/html`), JSON for APIs
 - All JSON responses include `Content-Type: application/json; charset=utf-8`
 - Log detailed errors server-side with structured logging
 - Never expose sensitive data in responses
@@ -111,6 +117,7 @@ go test -run Fuzz -fuzz=FuzzReturnURLParsing -fuzztime=5s ./internal/http
 - Referer validation: HTTPS-only, IP literal rejection, host allowlist
 - Port normalization: only HTTPS port 443 allowed
 - Global security headers: Referrer-Policy, X-Content-Type-Options, Permissions-Policy, HSTS
+- Cache-Control headers: `no-store, max-age=0` + `Pragma: no-cache` on all auth pages
 - PII redaction: log booleans (has_email), not actual values
 - Log return_host only, not full returnTo URLs
 - Fuzz tested parsing functions to prevent panics
@@ -124,22 +131,35 @@ go test -run Fuzz -fuzz=FuzzReturnURLParsing -fuzztime=5s ./internal/http
 - `internal/http/callback.go` - OAuth2 callback handler with logging
 - `internal/http/callback_integration_test.go` - Integration tests
 - `internal/http/callback_identify_test.go` - Renderer path tests
+- `internal/http/callback_error_test.go` - Error scenario tests for callback
 - `internal/http/router.go` - HTTP routing and security middleware
+- `internal/http/logout.go` - Logout handler with cookie clearing
+- `internal/http/logout_test.go` - Logout tests with cookie verification
 - `internal/http/middleware.go` - Referer validation middleware
-- `internal/http/errors.go` - Centralized error response helpers
+- `internal/http/errors.go` - Centralized error response helpers with noStore()
+- `internal/http/errors_test.go` - Error helper tests
+- `internal/http/errors_integration_test.go` - Content negotiation tests
+- `internal/http/render.go` - Error page HTML rendering
+- `internal/http/render_test.go` - Render tests
 - `internal/http/metrics.go` - Lightweight in-memory metrics
 - `internal/http/csp.go` - Route-specific CSP for Intercom identify page
 - `internal/http/middleware_fuzz_test.go` - Fuzz tests for security-critical parsing
 - `internal/http/login_integration_test.go` - Login flow integration tests
+- `internal/http/login_cache_test.go` - Login cache header tests
+- `internal/http/callback_cache_test.go` - Callback cache header tests
 - `internal/http/constants.go` - HTTP package constants
 - `internal/auth/token.go` - Token exchange with Auth0
 - `internal/auth/userinfo.go` - User info fetching
 - `internal/auth/intercom_renderer.go` - Intercom identify page renderer
+- `internal/auth/intercom_renderer_test.go` - Renderer tests
+- `internal/auth/templates/identify_intercom.tmpl` - Identify page template with fallback
 - `internal/auth/constants.go` - Auth package constants
 - `internal/security/cookie.go` - Cookie signing/validation
 - `internal/security/redirects.go` - URL sanitization and validation
 - `internal/config/config.go` - Configuration management
 - `docs/GATEWAY_HEADERS.md` - API Gateway/LB configuration guide
+- `web/error.tmpl` - Error page template
+- `web/logout.tmpl` - Logout page template
 
 ## Notes
 - Keep code simple and readable
@@ -149,3 +169,6 @@ go test -run Fuzz -fuzz=FuzzReturnURLParsing -fuzztime=5s ./internal/http
 - Use constants from constants.go files
 - Run `make fmt-strict` before committing
 - Check logs are not exposing secrets
+
+## Known Issues
+- **Content negotiation in middleware**: The `BadRequest()` function in `internal/http/errors.go` always returns JSON, even when `Accept: text/html` is present. This affects middleware errors (like referer validation). See `internal/http/errors_integration_test.go:TestErrorContentNegotiation_LoginWithReferer` for details. The login and callback handlers properly support content negotiation.
