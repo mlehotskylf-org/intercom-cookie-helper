@@ -48,7 +48,7 @@ func TestLogoutHandler_NoAcceptHeader(t *testing.T) {
 		t.Errorf("Expected Pragma: no-cache, got %s", pragma)
 	}
 
-	// Check that both cookies are cleared
+	// Check that both cookies are cleared with MaxAge=-1
 	cookies := rr.Result().Cookies()
 	foundTxnCookie := false
 	foundRedirectCookie := false
@@ -56,14 +56,20 @@ func TestLogoutHandler_NoAcceptHeader(t *testing.T) {
 	for _, cookie := range cookies {
 		if cookie.Name == auth.TxnCookieName {
 			foundTxnCookie = true
-			if cookie.MaxAge != -1 && cookie.Value != "" {
-				t.Error("Transaction cookie should be cleared (MaxAge=-1 or empty value)")
+			if cookie.MaxAge != -1 {
+				t.Errorf("Transaction cookie should be cleared with MaxAge=-1, got MaxAge=%d", cookie.MaxAge)
+			}
+			if cookie.Value != "" {
+				t.Errorf("Transaction cookie should have empty value, got %q", cookie.Value)
 			}
 		}
 		if cookie.Name == security.RedirectCookieName {
 			foundRedirectCookie = true
-			if cookie.MaxAge != -1 && cookie.Value != "" {
-				t.Error("Redirect cookie should be cleared (MaxAge=-1 or empty value)")
+			if cookie.MaxAge != -1 {
+				t.Errorf("Redirect cookie should be cleared with MaxAge=-1, got MaxAge=%d", cookie.MaxAge)
+			}
+			if cookie.Value != "" {
+				t.Errorf("Redirect cookie should have empty value, got %q", cookie.Value)
 			}
 		}
 	}
@@ -128,7 +134,7 @@ func TestLogoutHandler_HTMLAccept(t *testing.T) {
 		t.Errorf("Expected Pragma: no-cache, got %s", pragma)
 	}
 
-	// Check that both cookies are cleared
+	// Check that both cookies are cleared with MaxAge=-1
 	cookies := rr.Result().Cookies()
 	foundTxnCookie := false
 	foundRedirectCookie := false
@@ -136,9 +142,21 @@ func TestLogoutHandler_HTMLAccept(t *testing.T) {
 	for _, cookie := range cookies {
 		if cookie.Name == auth.TxnCookieName {
 			foundTxnCookie = true
+			if cookie.MaxAge != -1 {
+				t.Errorf("Transaction cookie should be cleared with MaxAge=-1, got MaxAge=%d", cookie.MaxAge)
+			}
+			if cookie.Value != "" {
+				t.Errorf("Transaction cookie should have empty value, got %q", cookie.Value)
+			}
 		}
 		if cookie.Name == security.RedirectCookieName {
 			foundRedirectCookie = true
+			if cookie.MaxAge != -1 {
+				t.Errorf("Redirect cookie should be cleared with MaxAge=-1, got MaxAge=%d", cookie.MaxAge)
+			}
+			if cookie.Value != "" {
+				t.Errorf("Redirect cookie should have empty value, got %q", cookie.Value)
+			}
 		}
 	}
 
@@ -413,5 +431,118 @@ func TestLogoutHandler_WithInvalidReferer(t *testing.T) {
 	}
 	if !strings.Contains(body, "http://localhost:8080/") {
 		t.Error("Should fall back to safe default URL")
+	}
+}
+
+func TestLogoutHandler_ClearsSeededCookies(t *testing.T) {
+	// Goal: Guard regression - ensure logout clears cookies that were present
+	// Setup config
+	cfg := config.Config{
+		CookieDomain:  "localhost",
+		AppHostname:   "localhost",
+		Port:          "8080",
+		Env:           "dev",
+		EnableLogout: true,
+	}
+
+	tests := []struct {
+		name        string
+		acceptHeader string
+		expectStatus int
+		expectBody   string
+	}{
+		{
+			name:         "JSON client",
+			acceptHeader: "application/json",
+			expectStatus: http.StatusNoContent,
+			expectBody:   "",
+		},
+		{
+			name:         "HTML client",
+			acceptHeader: "text/html",
+			expectStatus: http.StatusOK,
+			expectBody:   "Signed out",
+		},
+		{
+			name:         "No accept header",
+			acceptHeader: "",
+			expectStatus: http.StatusNoContent,
+			expectBody:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Seed request with both cookies (simulating an authenticated user)
+			req := httptest.NewRequest("GET", "/logout", nil)
+			req.AddCookie(&http.Cookie{
+				Name:  auth.TxnCookieName,
+				Value: "some-transaction-value",
+			})
+			req.AddCookie(&http.Cookie{
+				Name:  security.RedirectCookieName,
+				Value: "some-redirect-value",
+			})
+
+			if tt.acceptHeader != "" {
+				req.Header.Set("Accept", tt.acceptHeader)
+			}
+			req = req.WithContext(withTestConfig(req.Context(), cfg))
+
+			// Create response recorder
+			rr := httptest.NewRecorder()
+
+			// Call logout handler
+			logoutHandler(rr, req)
+
+			// Assert status code
+			if rr.Code != tt.expectStatus {
+				t.Errorf("Expected status %d, got %d", tt.expectStatus, rr.Code)
+			}
+
+			// Assert body content
+			if tt.expectBody != "" && !strings.Contains(rr.Body.String(), tt.expectBody) {
+				t.Errorf("Expected body to contain %q, got %q", tt.expectBody, rr.Body.String())
+			}
+
+			// Assert response has two Set-Cookie headers with MaxAge=-1 (expiring them)
+			cookies := rr.Result().Cookies()
+			if len(cookies) != 2 {
+				t.Errorf("Expected 2 Set-Cookie headers, got %d", len(cookies))
+			}
+
+			foundTxn := false
+			foundRedirect := false
+
+			for _, cookie := range cookies {
+				switch cookie.Name {
+				case auth.TxnCookieName:
+					foundTxn = true
+					if cookie.MaxAge != -1 {
+						t.Errorf("Transaction cookie should have MaxAge=-1, got %d", cookie.MaxAge)
+					}
+					if cookie.Value != "" {
+						t.Errorf("Transaction cookie should have empty value, got %q", cookie.Value)
+					}
+				case security.RedirectCookieName:
+					foundRedirect = true
+					if cookie.MaxAge != -1 {
+						t.Errorf("Redirect cookie should have MaxAge=-1, got %d", cookie.MaxAge)
+					}
+					if cookie.Value != "" {
+						t.Errorf("Redirect cookie should have empty value, got %q", cookie.Value)
+					}
+				default:
+					t.Errorf("Unexpected cookie in response: %s", cookie.Name)
+				}
+			}
+
+			if !foundTxn {
+				t.Error("Transaction cookie should be in Set-Cookie headers")
+			}
+			if !foundRedirect {
+				t.Error("Redirect cookie should be in Set-Cookie headers")
+			}
+		})
 	}
 }
