@@ -162,14 +162,14 @@ func TestHealthzHandler_Deep_MissingConfig(t *testing.T) {
 func TestHealthzHandler_Deep_ShortCookieKey(t *testing.T) {
 	// Create config with short cookie key
 	cfg := config.Config{
-		Env:               "dev",
-		AppHostname:       "localhost",
-		Port:              "8080",
-		Auth0Domain:       "dev-test.us.auth0.com",
-		Auth0ClientID:     "test-client-id",
-		IntercomAppID:     "test-app-id",
-		CookieDomain:      ".example.com",
-		CookieSigningKey:  []byte("tooshort"), // Only 8 bytes
+		Env:              "dev",
+		AppHostname:      "localhost",
+		Port:             "8080",
+		Auth0Domain:      "dev-test.us.auth0.com",
+		Auth0ClientID:    "test-client-id",
+		IntercomAppID:    "test-app-id",
+		CookieDomain:     ".example.com",
+		CookieSigningKey: []byte("tooshort"), // Only 8 bytes
 	}
 
 	// Create router with config
@@ -215,41 +215,41 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "valid config",
 			cfg: config.Config{
-				Auth0Domain:       "test.auth0.com",
-				Auth0ClientID:     "client-id",
-				IntercomAppID:     "app-id",
-				AppHostname:       "localhost",
-				CookieDomain:      ".example.com",
+				Auth0Domain:   "test.auth0.com",
+				Auth0ClientID: "client-id",
+				IntercomAppID: "app-id",
+				AppHostname:   "localhost",
+				CookieDomain:  ".example.com",
 			},
 			expectErr: false,
 		},
 		{
 			name: "missing Auth0 domain",
 			cfg: config.Config{
-				Auth0ClientID:     "client-id",
-				IntercomAppID:     "app-id",
-				AppHostname:       "localhost",
-				CookieDomain:      ".example.com",
+				Auth0ClientID: "client-id",
+				IntercomAppID: "app-id",
+				AppHostname:   "localhost",
+				CookieDomain:  ".example.com",
 			},
 			expectErr: true,
 		},
 		{
 			name: "missing Auth0 client ID",
 			cfg: config.Config{
-				Auth0Domain:       "test.auth0.com",
-				IntercomAppID:     "app-id",
-				AppHostname:       "localhost",
-				CookieDomain:      ".example.com",
+				Auth0Domain:   "test.auth0.com",
+				IntercomAppID: "app-id",
+				AppHostname:   "localhost",
+				CookieDomain:  ".example.com",
 			},
 			expectErr: true,
 		},
 		{
 			name: "missing Intercom app ID",
 			cfg: config.Config{
-				Auth0Domain:       "test.auth0.com",
-				Auth0ClientID:     "client-id",
-				AppHostname:       "localhost",
-				CookieDomain:      ".example.com",
+				Auth0Domain:   "test.auth0.com",
+				Auth0ClientID: "client-id",
+				AppHostname:   "localhost",
+				CookieDomain:  ".example.com",
 			},
 			expectErr: true,
 		},
@@ -257,20 +257,20 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "missing app hostname",
 			cfg: config.Config{
-				Auth0Domain:       "test.auth0.com",
-				Auth0ClientID:     "client-id",
-				IntercomAppID:     "app-id",
-				CookieDomain:      ".example.com",
+				Auth0Domain:   "test.auth0.com",
+				Auth0ClientID: "client-id",
+				IntercomAppID: "app-id",
+				CookieDomain:  ".example.com",
 			},
 			expectErr: true,
 		},
 		{
 			name: "missing cookie domain",
 			cfg: config.Config{
-				Auth0Domain:       "test.auth0.com",
-				Auth0ClientID:     "client-id",
-				IntercomAppID:     "app-id",
-				AppHostname:       "localhost",
+				Auth0Domain:   "test.auth0.com",
+				Auth0ClientID: "client-id",
+				IntercomAppID: "app-id",
+				AppHostname:   "localhost",
 			},
 			expectErr: true,
 		},

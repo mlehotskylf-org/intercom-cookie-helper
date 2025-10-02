@@ -135,7 +135,6 @@ func TestExtractNonceFromIDToken_RealWorldTokens(t *testing.T) {
 
 	token := createTestToken(t, claims)
 	nonce, err := ExtractNonceFromIDToken(token)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -162,7 +161,6 @@ func TestExtractNonceFromIDToken_SpecialCharacters(t *testing.T) {
 		t.Run("nonce="+specialNonce, func(t *testing.T) {
 			token := createTestToken(t, map[string]interface{}{"nonce": specialNonce})
 			extractedNonce, err := ExtractNonceFromIDToken(token)
-
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -319,25 +317,24 @@ func TestParseUserInfoFromIDToken(t *testing.T) {
 // TestParseUserInfoFromIDToken_RealWorldToken tests with a realistic Auth0 ID token structure
 func TestParseUserInfoFromIDToken_RealWorldToken(t *testing.T) {
 	claims := map[string]interface{}{
-		"iss":              "https://auth0.example.com/",
-		"sub":              "auth0|507f1f77bcf86cd799439011",
-		"aud":              "my-client-id",
-		"iat":              1516239022,
-		"exp":              1516239322,
-		"email":            "realuser@example.com",
-		"email_verified":   true,
-		"name":             "Real User",
-		"given_name":       "Real",
-		"family_name":      "User",
-		"picture":          "https://example.com/avatar.jpg",
-		"locale":           "en",
-		"updated_at":       "2024-01-01T00:00:00.000Z",
-		"nonce":            "test-nonce",
+		"iss":            "https://auth0.example.com/",
+		"sub":            "auth0|507f1f77bcf86cd799439011",
+		"aud":            "my-client-id",
+		"iat":            1516239022,
+		"exp":            1516239322,
+		"email":          "realuser@example.com",
+		"email_verified": true,
+		"name":           "Real User",
+		"given_name":     "Real",
+		"family_name":    "User",
+		"picture":        "https://example.com/avatar.jpg",
+		"locale":         "en",
+		"updated_at":     "2024-01-01T00:00:00.000Z",
+		"nonce":          "test-nonce",
 	}
 
 	token := createTestToken(t, claims)
 	userInfo, err := ParseUserInfoFromIDToken(token)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

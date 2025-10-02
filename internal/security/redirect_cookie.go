@@ -66,8 +66,10 @@ import (
 	"time"
 )
 
-const RedirectCookieName = "ic_redirect"
-const RedirectCookieV1 = "v1"
+const (
+	RedirectCookieName = "ic_redirect"
+	RedirectCookieV1   = "v1"
+)
 
 type RedirectPayloadV1 struct {
 	V     string `json:"v"`             // "v1"

@@ -137,35 +137,44 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			return
 		}
 
-		// Step 1: Read and sanitize return_to (fail closed before setting any cookies)
-		returnTo := r.URL.Query().Get("return_to")
-		if returnTo == "" {
-			metrics.LoginBadReturn.Add(1)
-			if acceptsHTML(r) {
-				renderErrorHTML(w, http.StatusBadRequest, ErrView{
-					Title:    "Can't start sign-in",
-					Message:  "The sign-in request is missing required information. Please try again from your application.",
-					RetryURL: safeDefaultURL(cfg),
-				})
-			} else {
-				BadRequest(w, r, "Missing return_to parameter")
-			}
-			return
+		// Step 1: Determine return URL (priority: Referer header > return_to query param > none)
+		// This allows sites to simply link to /login (browser sends referer automatically)
+		// while supporting query param fallback for edge cases (privacy extensions, testing, etc.)
+		var returnTo string
+
+		// Try Referer header first (primary method per architecture)
+		if referer := r.Header.Get(HeaderReferer); referer != "" {
+			returnTo = referer
 		}
 
-		sanitizedURL, err := sanitizer.SanitizeReturnURL(returnTo)
-		if err != nil {
-			metrics.LoginBadReturn.Add(1)
-			if acceptsHTML(r) {
-				renderErrorHTML(w, http.StatusBadRequest, ErrView{
-					Title:    "Can't start sign-in",
-					Message:  "We couldn't validate the page you came from. Please make sure you're signing in from a supported page.",
-					RetryURL: safeDefaultURL(cfg),
-				})
-			} else {
-				BadRequest(w, r, fmt.Sprintf("Invalid return_to URL: %v", err))
+		// Fall back to return_to query param if no referer
+		if returnTo == "" {
+			returnTo = r.URL.Query().Get("return_to")
+		}
+
+		// If neither is present, we'll continue without a return URL
+		// The callback will show a success message instead of redirecting
+		var sanitizedURL string
+		if returnTo == "" {
+			// No return URL - will show success message on callback
+			sanitizedURL = ""
+		} else {
+			// Validate and sanitize the return URL (fail closed before setting any cookies)
+			var err error
+			sanitizedURL, err = sanitizer.SanitizeReturnURL(returnTo)
+			if err != nil {
+				metrics.LoginBadReturn.Add(1)
+				if acceptsHTML(r) {
+					renderErrorHTML(w, http.StatusBadRequest, ErrView{
+						Title:    "Can't start sign-in",
+						Message:  "We couldn't validate the page you came from. Please make sure you're signing in from a supported page.",
+						RetryURL: safeDefaultURL(cfg),
+					})
+				} else {
+					BadRequest(w, r, fmt.Sprintf("Invalid return URL: %v", err))
+				}
+				return
 			}
-			return
 		}
 
 		// Extract return host for logging (avoid logging full URL with potential PII)
@@ -182,13 +191,15 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			}
 		}
 
-		// Step 2: Set redirect cookie (only after successful sanitization)
-		_, err = security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cfg.RedirectCookieOpts(), time.Now())
-		if err != nil {
-			// Cookie errors are typically due to size limits or encoding issues (client error)
-			metrics.LoginCookieFail.Add(1)
-			BadRequest(w, r, fmt.Sprintf("Failed to set redirect cookie: %v", err))
-			return
+		// Step 2: Set redirect cookie (only if we have a return URL)
+		if sanitizedURL != "" {
+			_, err := security.SetSignedRedirectCookie(w, sanitizedURL, referrerHost, cfg.CookieSigningKey, cfg.RedirectCookieOpts(), time.Now())
+			if err != nil {
+				// Cookie errors are typically due to size limits or encoding issues (client error)
+				metrics.LoginCookieFail.Add(1)
+				BadRequest(w, r, fmt.Sprintf("Failed to set redirect cookie: %v", err))
+				return
+			}
 		}
 
 		// Step 3: Set transaction cookie with PKCE parameters

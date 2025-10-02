@@ -14,62 +14,62 @@ import (
 func FuzzRefererParsing(f *testing.F) {
 	// Seed corpus with known edge cases
 	seedCases := []string{
-		"",                                           // empty
-		"https://example.com",                        // valid
-		"http://example.com",                         // wrong scheme
-		"https://192.168.1.1",                        // IP literal
-		"https://example.com:8080",                   // non-standard port
-		"https://evil.com",                           // not in allowlist
-		"javascript:alert(1)",                        // javascript scheme
-		"data:text/html,<script>alert(1)</script>",  // data scheme
-		"file:///etc/passwd",                         // file scheme
-		"ftp://example.com",                          // ftp scheme
-		"//example.com",                              // protocol-relative
-		"https://",                                   // incomplete
-		"https://example.com.",                       // trailing dot
-		"https://EXAMPLE.COM",                        // uppercase
-		"https://example.com/../../../etc/passwd",    // path traversal
-		"https://example.com?param=value",            // query params
-		"https://example.com#fragment",               // fragment
-		"https://example.com:443",                    // explicit 443
-		"https://[::1]",                              // IPv6 localhost
-		"https://[2001:db8::1]",                      // IPv6
-		"https://exam\x00ple.com",                    // null byte
-		"https://exam\nple.com",                      // newline
-		"https://exam\rple.com",                      // carriage return
-		"https://exam\tple.com",                      // tab
-		"https://exam ple.com",                       // space
-		"https://example.com\x00/path",               // null in path
-		"https://.example.com",                       // leading dot
-		"https://..example.com",                      // double dots in domain
-		"https://example..com",                       // double dots
-		"https://example.com..",                      // trailing double dots
-		"https://sub.example.com",                    // subdomain (allowed via wildcard)
-		"https://sub.sub.example.com",                // deep subdomain
-		"https://example.com" + string(rune(0x7F)),   // DEL character
-		"https://example.com" + string(rune(0x1F)),   // control character
-		"HTTPS://EXAMPLE.COM",                        // all caps
-		"hTtPs://ExAmPlE.cOm",                        // mixed case
-		"https://example.com:0",                      // port 0
-		"https://example.com:65536",                  // port overflow
-		"https://example.com:-1",                     // negative port
-		"https://example.com:",                       // empty port
-		"https://:443",                               // missing host
-		"https://user:pass@example.com",              // userinfo
-		"https://user@example.com",                   // user only
-		"https://@example.com",                       // empty userinfo
-		"https://example.com/path?query#fragment",    // full URL
-		"\x00https://example.com",                    // leading null
-		"https://example.com\x00",                    // trailing null
-		"   https://example.com   ",                  // leading/trailing spaces
-		"https://127.0.0.1",                          // IPv4 loopback
-		"https://0.0.0.0",                            // IPv4 zero
-		"https://255.255.255.255",                    // IPv4 max
-		"https://[::ffff:192.168.1.1]",               // IPv4-mapped IPv6
-		"https://example",                            // no TLD
-		"https://.com",                               // TLD only
+		"",                         // empty
+		"https://example.com",      // valid
+		"http://example.com",       // wrong scheme
+		"https://192.168.1.1",      // IP literal
+		"https://example.com:8080", // non-standard port
+		"https://evil.com",         // not in allowlist
+		"javascript:alert(1)",      // javascript scheme
+		"data:text/html,<script>alert(1)</script>",         // data scheme
+		"file:///etc/passwd",                               // file scheme
+		"ftp://example.com",                                // ftp scheme
+		"//example.com",                                    // protocol-relative
+		"https://",                                         // incomplete
+		"https://example.com.",                             // trailing dot
+		"https://EXAMPLE.COM",                              // uppercase
+		"https://example.com/../../../etc/passwd",          // path traversal
+		"https://example.com?param=value",                  // query params
+		"https://example.com#fragment",                     // fragment
+		"https://example.com:443",                          // explicit 443
+		"https://[::1]",                                    // IPv6 localhost
+		"https://[2001:db8::1]",                            // IPv6
+		"https://exam\x00ple.com",                          // null byte
+		"https://exam\nple.com",                            // newline
+		"https://exam\rple.com",                            // carriage return
+		"https://exam\tple.com",                            // tab
+		"https://exam ple.com",                             // space
+		"https://example.com\x00/path",                     // null in path
+		"https://.example.com",                             // leading dot
+		"https://..example.com",                            // double dots in domain
+		"https://example..com",                             // double dots
+		"https://example.com..",                            // trailing double dots
+		"https://sub.example.com",                          // subdomain (allowed via wildcard)
+		"https://sub.sub.example.com",                      // deep subdomain
+		"https://example.com" + string(rune(0x7F)),         // DEL character
+		"https://example.com" + string(rune(0x1F)),         // control character
+		"HTTPS://EXAMPLE.COM",                              // all caps
+		"hTtPs://ExAmPlE.cOm",                              // mixed case
+		"https://example.com:0",                            // port 0
+		"https://example.com:65536",                        // port overflow
+		"https://example.com:-1",                           // negative port
+		"https://example.com:",                             // empty port
+		"https://:443",                                     // missing host
+		"https://user:pass@example.com",                    // userinfo
+		"https://user@example.com",                         // user only
+		"https://@example.com",                             // empty userinfo
+		"https://example.com/path?query#fragment",          // full URL
+		"\x00https://example.com",                          // leading null
+		"https://example.com\x00",                          // trailing null
+		"   https://example.com   ",                        // leading/trailing spaces
+		"https://127.0.0.1",                                // IPv4 loopback
+		"https://0.0.0.0",                                  // IPv4 zero
+		"https://255.255.255.255",                          // IPv4 max
+		"https://[::ffff:192.168.1.1]",                     // IPv4-mapped IPv6
+		"https://example",                                  // no TLD
+		"https://.com",                                     // TLD only
 		"https://example.com" + string(make([]byte, 1000)), // very long URL
-		"https://" + string(make([]byte, 500)),       // very long host
+		"https://" + string(make([]byte, 500)),             // very long host
 	}
 
 	for _, seed := range seedCases {
@@ -147,32 +147,32 @@ func FuzzRefererParsing(f *testing.F) {
 func FuzzReturnURLParsing(f *testing.F) {
 	// Seed corpus with known edge cases
 	seedCases := []string{
-		"",                                           // empty
-		"https://example.com",                        // valid
-		"http://example.com",                         // wrong scheme
-		"https://example.com:8080",                   // non-standard port
-		"https://evil.com",                           // not in allowlist
-		"javascript:alert(1)",                        // javascript scheme
-		"data:text/html,<script>",                    // data scheme
-		"https://192.168.1.1",                        // IP literal
-		"https://example.com/../../../etc/passwd",    // path traversal (fine after host)
-		"https://example.com?param=value",            // query params
-		"https://example.com#fragment",               // fragment
-		"https://EXAMPLE.COM",                        // uppercase
-		"https://example.com.",                       // trailing dot
-		"https://example.com..",                      // trailing double dots
-		"https://sub.example.com",                    // subdomain
-		"https://[::1]",                              // IPv6
-		"https://example.com\x00",                    // null byte
+		"",                         // empty
+		"https://example.com",      // valid
+		"http://example.com",       // wrong scheme
+		"https://example.com:8080", // non-standard port
+		"https://evil.com",         // not in allowlist
+		"javascript:alert(1)",      // javascript scheme
+		"data:text/html,<script>",  // data scheme
+		"https://192.168.1.1",      // IP literal
+		"https://example.com/../../../etc/passwd",           // path traversal (fine after host)
+		"https://example.com?param=value",                   // query params
+		"https://example.com#fragment",                      // fragment
+		"https://EXAMPLE.COM",                               // uppercase
+		"https://example.com.",                              // trailing dot
+		"https://example.com..",                             // trailing double dots
+		"https://sub.example.com",                           // subdomain
+		"https://[::1]",                                     // IPv6
+		"https://example.com\x00",                           // null byte
 		"https://example.com" + string(make([]byte, 10000)), // very long
-		"//example.com",                              // protocol-relative
-		"https://",                                   // incomplete
-		"https://user:pass@example.com",              // userinfo
-		"HTTPS://EXAMPLE.COM/PATH",                   // all caps
-		"https://example.com:443",                    // explicit 443 (should normalize)
-		"https://example.com:0",                      // port 0
-		"https://example.com:-1",                     // negative port
-		"https://example.com:99999",                  // port overflow
+		"//example.com",                                     // protocol-relative
+		"https://",                                          // incomplete
+		"https://user:pass@example.com",                     // userinfo
+		"HTTPS://EXAMPLE.COM/PATH",                          // all caps
+		"https://example.com:443",                           // explicit 443 (should normalize)
+		"https://example.com:0",                             // port 0
+		"https://example.com:-1",                            // negative port
+		"https://example.com:99999",                         // port overflow
 	}
 
 	for _, seed := range seedCases {

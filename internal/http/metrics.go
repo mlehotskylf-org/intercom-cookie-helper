@@ -9,20 +9,20 @@ import (
 // These are lightweight in-memory counters that provide visibility without heavy dependencies.
 type Metrics struct {
 	// Login flow counters
-	LoginStart       atomic.Uint64 // Login endpoint invoked
-	LoginBadReferer  atomic.Uint64 // Referer validation failed
-	LoginBadReturn   atomic.Uint64 // return_to validation failed
-	LoginCookieFail  atomic.Uint64 // Cookie setting failed
-	LoginOK          atomic.Uint64 // Login redirect to Auth0 successful
+	LoginStart      atomic.Uint64 // Login endpoint invoked
+	LoginBadReferer atomic.Uint64 // Referer validation failed
+	LoginBadReturn  atomic.Uint64 // return_to validation failed
+	LoginCookieFail atomic.Uint64 // Cookie setting failed
+	LoginOK         atomic.Uint64 // Login redirect to Auth0 successful
 
 	// Callback flow counters
-	CbStart          atomic.Uint64 // Callback endpoint invoked
-	CbStateMismatch  atomic.Uint64 // State parameter validation failed
-	CbExchangeFail   atomic.Uint64 // Token exchange with Auth0 failed
-	CbNonceFail      atomic.Uint64 // Nonce verification failed
-	CbUserinfoFail   atomic.Uint64 // User info extraction failed
-	CbCookieFail     atomic.Uint64 // Cookie read/clear failed
-	CbOK             atomic.Uint64 // Callback successful, user identified
+	CbStart         atomic.Uint64 // Callback endpoint invoked
+	CbStateMismatch atomic.Uint64 // State parameter validation failed
+	CbExchangeFail  atomic.Uint64 // Token exchange with Auth0 failed
+	CbNonceFail     atomic.Uint64 // Nonce verification failed
+	CbUserinfoFail  atomic.Uint64 // User info extraction failed
+	CbCookieFail    atomic.Uint64 // Cookie read/clear failed
+	CbOK            atomic.Uint64 // Callback successful, user identified
 }
 
 // Global metrics instance

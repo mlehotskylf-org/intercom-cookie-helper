@@ -250,7 +250,7 @@ func TestNoSecretsInResponse(t *testing.T) {
 func containsCaseInsensitive(s, substr string) bool {
 	return len(s) >= len(substr) &&
 		(s == substr || len(s) > len(substr) &&
-		contains(s, substr))
+			contains(s, substr))
 }
 
 func contains(s, substr string) bool {

@@ -15,10 +15,12 @@ import (
 // TestLoginToDebugIntegration tests the complete end-to-end flow:
 // 1. Build config with test keys and domains
 // 2. Initialize router with sanitizer and middleware
-// 3. Issue GET /login with valid return_to and referer
+// 3. Issue GET /login with various combinations of referer and return_to
 // 4. Capture Set-Cookie header
 // 5. Use that cookie in a request to /debug/redirect-cookie
 // 6. Assert the decoded URL matches expected value
+//
+// Priority: Referer header > return_to query param > none (no cookie)
 func TestLoginToDebugIntegration(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -29,33 +31,49 @@ func TestLoginToDebugIntegration(t *testing.T) {
 		expectDebugOK bool
 	}{
 		{
-			name:          "complete flow with valid URL and referer",
-			returnTo:      "https://example.com/dashboard?utm_source=test",
-			referer:       "https://example.com/login-page",
-			expectedURL:   "https://example.com/dashboard?utm_source=test",
+			name:          "referer takes priority over return_to param",
+			returnTo:      "https://example.com/wrong",
+			referer:       "https://example.com/correct?utm_source=test",
+			expectedURL:   "https://example.com/correct?utm_source=test",
 			expectCookie:  true,
 			expectDebugOK: true,
 		},
 		{
-			name:          "complete flow with subdomain",
-			returnTo:      "https://app.example.com/user/profile",
-			referer:       "https://www.example.com/",
+			name:          "referer only (primary method per architecture)",
+			returnTo:      "",
+			referer:       "https://example.com/dashboard?utm_source=email",
+			expectedURL:   "https://example.com/dashboard?utm_source=email",
+			expectCookie:  true,
+			expectDebugOK: true,
+		},
+		{
+			name:          "return_to param fallback when no referer",
+			returnTo:      "https://example.com/fallback",
+			referer:       "",
+			expectedURL:   "https://example.com/fallback",
+			expectCookie:  true,
+			expectDebugOK: true,
+		},
+		{
+			name:          "neither referer nor return_to (no cookie set)",
+			returnTo:      "",
+			referer:       "",
+			expectedURL:   "",
+			expectCookie:  false,
+			expectDebugOK: false,
+		},
+		{
+			name:          "referer with subdomain",
+			returnTo:      "",
+			referer:       "https://app.example.com/user/profile",
 			expectedURL:   "https://app.example.com/user/profile",
 			expectCookie:  true,
 			expectDebugOK: true,
 		},
 		{
-			name:          "complete flow with no referer",
-			returnTo:      "https://example.com/home",
-			referer:       "",
-			expectedURL:   "https://example.com/home",
-			expectCookie:  true,
-			expectDebugOK: true,
-		},
-		{
-			name:          "complete flow with localhost",
-			returnTo:      "https://localhost/dev/test",
-			referer:       "https://localhost/dev",
+			name:          "referer with localhost",
+			returnTo:      "",
+			referer:       "https://localhost/dev/test",
 			expectedURL:   "https://localhost/dev/test",
 			expectCookie:  true,
 			expectDebugOK: true,
@@ -91,8 +109,11 @@ func TestLoginToDebugIntegration(t *testing.T) {
 			// Step 2: Initialize router with sanitizer and middleware
 			router := NewRouter(cfg)
 
-			// Step 3: Issue GET /login with valid return_to and referer
-			loginURL := "/login?return_to=" + tt.returnTo
+			// Step 3: Issue GET /login with optional return_to and referer
+			loginURL := "/login"
+			if tt.returnTo != "" {
+				loginURL += "?return_to=" + tt.returnTo
+			}
 			loginReq, err := http.NewRequest("GET", loginURL, nil)
 			if err != nil {
 				t.Fatalf("failed to create login request: %v", err)
@@ -221,9 +242,10 @@ func TestLoginToDebugIntegrationWithKeyRotation(t *testing.T) {
 	router := NewRouter(cfg)
 
 	// Step 2: Create cookie with primary key
+	// Use return_to param (no referer) to test specific URL
 	returnTo := "https://example.com/test-rotation"
 	loginReq, _ := http.NewRequest("GET", "/login?return_to="+returnTo, nil)
-	loginReq.Header.Set("Referer", "https://example.com/")
+	// Don't set referer so return_to param is used
 
 	loginRec := httptest.NewRecorder()
 	router.ServeHTTP(loginRec, loginReq)
@@ -364,7 +386,8 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 	})
 
 	t.Run("login with not-allowed referer returns 400 and no cookies", func(t *testing.T) {
-		loginReq, _ := http.NewRequest("GET", "/login?return_to=https://example.com/test", nil)
+		// With the new priority (referer > return_to), the evil referer will be used and rejected
+		loginReq, _ := http.NewRequest("GET", "/login", nil)
 		loginReq.Header.Set("Referer", "https://evil.com/phishing")
 
 		loginRec := httptest.NewRecorder()
@@ -394,9 +417,32 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 		}
 	})
 
+	t.Run("evil referer takes priority over valid return_to param", func(t *testing.T) {
+		// Even though return_to is valid, the evil referer should cause rejection
+		loginReq, _ := http.NewRequest("GET", "/login?return_to=https://example.com/safe", nil)
+		loginReq.Header.Set("Referer", "https://evil.com/phishing")
+
+		loginRec := httptest.NewRecorder()
+		router.ServeHTTP(loginRec, loginReq)
+
+		// Should return 400 because referer has priority
+		if loginRec.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400 for disallowed referer (despite valid return_to), got %d", loginRec.Code)
+		}
+
+		// Should not set any cookies
+		cookies := loginRec.Result().Cookies()
+		for _, cookie := range cookies {
+			if cookie.Name == security.RedirectCookieName {
+				t.Errorf("expected no redirect cookie when referer is evil, but got one")
+			}
+		}
+	})
+
 	t.Run("login with mixed-case host and trailing dot is allowed", func(t *testing.T) {
 		// Mixed case + trailing dot should normalize and work
-		loginReq, _ := http.NewRequest("GET", "/login?return_to=https://EXAMPLE.COM./test", nil)
+		// Referer takes priority, so we'll use that for the return URL
+		loginReq, _ := http.NewRequest("GET", "/login", nil)
 		loginReq.Header.Set("Referer", "https://Example.Com/")
 
 		loginRec := httptest.NewRecorder()
@@ -427,7 +473,7 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 			t.Errorf("expected redirect to Auth0, got: %s", location)
 		}
 
-		// Verify cookie can be decoded and URL was normalized
+		// Verify cookie can be decoded and URL was normalized (referer is used)
 		debugReq, _ := http.NewRequest("GET", "/debug/redirect-cookie", nil)
 		debugReq.AddCookie(redirectCookie)
 
@@ -441,8 +487,8 @@ func TestLoginToDebugIntegrationErrorCases(t *testing.T) {
 		var debugResponse map[string]interface{}
 		json.Unmarshal(debugRec.Body.Bytes(), &debugResponse)
 
-		// URL should be normalized to lowercase without trailing dot
-		expectedNormalized := "https://example.com/test"
+		// URL should be normalized to lowercase (from referer)
+		expectedNormalized := "https://example.com/"
 		if url, _ := debugResponse["url"].(string); url != expectedNormalized {
 			t.Errorf("expected normalized URL '%s', got '%s'", expectedNormalized, url)
 		}

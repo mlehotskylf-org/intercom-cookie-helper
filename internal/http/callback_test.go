@@ -72,7 +72,7 @@ func setupCallbackTestTemplates(t *testing.T) func() {
 	t.Helper()
 
 	// Create a temporary web directory for tests
-	err := os.MkdirAll("web", 0755)
+	err := os.MkdirAll("web", 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create web directory: %v", err)
 	}
@@ -88,7 +88,7 @@ func setupCallbackTestTemplates(t *testing.T) func() {
 </html>`
 
 	errorTmplPath := filepath.Join("web", "error.tmpl")
-	err = os.WriteFile(errorTmplPath, []byte(errorTmplContent), 0644)
+	err = os.WriteFile(errorTmplPath, []byte(errorTmplContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create error template file: %v", err)
 	}
@@ -102,7 +102,7 @@ func setupCallbackTestTemplates(t *testing.T) func() {
 </html>`
 
 	successTmplPath := filepath.Join("web", "callback-ok.tmpl")
-	err = os.WriteFile(successTmplPath, []byte(successTmplContent), 0644)
+	err = os.WriteFile(successTmplPath, []byte(successTmplContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create success template file: %v", err)
 	}
@@ -355,9 +355,9 @@ func TestHandleCallback(t *testing.T) {
 				// Map expected error codes to actual HTML error messages
 				// These are based on what renderErrorPage() actually generates
 				expectedMessages := map[string]string{
-					"invalid_request": "no longer valid",     // ErrorMsgSessionExpired or ErrorMsgMissingParams
-					"invalid_grant":   "couldn't verify",     // ErrorMsgAuthFailed
-					"access_denied":   "denied",              // OAuth error passes through the description
+					"invalid_request": "no longer valid",       // ErrorMsgSessionExpired or ErrorMsgMissingParams
+					"invalid_grant":   "couldn't verify",       // ErrorMsgAuthFailed
+					"access_denied":   "denied",                // OAuth error passes through the description
 					"security_check":  "security check failed", // ErrorMsgSecurityValidation
 				}
 

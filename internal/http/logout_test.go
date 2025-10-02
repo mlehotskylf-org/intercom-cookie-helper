@@ -14,10 +14,10 @@ import (
 func TestLogoutHandler_NoAcceptHeader(t *testing.T) {
 	// Setup config
 	cfg := config.Config{
-		CookieDomain:  "localhost",
-		AppHostname:   "localhost",
-		Port:          "8080",
-		Env:           "dev",
+		CookieDomain: "localhost",
+		AppHostname:  "localhost",
+		Port:         "8080",
+		Env:          "dev",
 		EnableLogout: true,
 	}
 
@@ -297,10 +297,10 @@ func TestLogoutHandler_NoConfig(t *testing.T) {
 func TestLogoutHandler_JSONAccept(t *testing.T) {
 	// Setup config
 	cfg := config.Config{
-		CookieDomain:  "localhost",
-		AppHostname:   "localhost",
-		Port:          "8080",
-		Env:           "dev",
+		CookieDomain: "localhost",
+		AppHostname:  "localhost",
+		Port:         "8080",
+		Env:          "dev",
 		EnableLogout: true,
 	}
 
@@ -368,10 +368,10 @@ func TestLogoutHandler_WithReferer(t *testing.T) {
 func TestLogoutHandler_Disabled(t *testing.T) {
 	// Setup config with logout DISABLED
 	cfg := config.Config{
-		CookieDomain:  "localhost",
-		AppHostname:   "localhost",
-		Port:          "8080",
-		Env:           "dev",
+		CookieDomain: "localhost",
+		AppHostname:  "localhost",
+		Port:         "8080",
+		Env:          "dev",
 		EnableLogout: false,
 	}
 
@@ -438,15 +438,15 @@ func TestLogoutHandler_ClearsSeededCookies(t *testing.T) {
 	// Goal: Guard regression - ensure logout clears cookies that were present
 	// Setup config
 	cfg := config.Config{
-		CookieDomain:  "localhost",
-		AppHostname:   "localhost",
-		Port:          "8080",
-		Env:           "dev",
+		CookieDomain: "localhost",
+		AppHostname:  "localhost",
+		Port:         "8080",
+		Env:          "dev",
 		EnableLogout: true,
 	}
 
 	tests := []struct {
-		name        string
+		name         string
 		acceptHeader string
 		expectStatus int
 		expectBody   string

@@ -22,24 +22,24 @@ func TestCallbackRendererSuccess(t *testing.T) {
 
 	// Create test config
 	cfg := config.Config{
-		Env:                      "test",
-		AppHostname:              "localhost",
-		Port:                     "8080",
-		CookieDomain:             ".localhost",
-		EnableHSTS:               false,
-		RedirectTTL:              30 * time.Minute,
-		SessionTTL:               24 * time.Hour,
-		LogLevel:                 "info",
-		CookieSigningKey:         []byte("test-signing-key-32-bytes-long!"),
+		Env:                       "test",
+		AppHostname:               "localhost",
+		Port:                      "8080",
+		CookieDomain:              ".localhost",
+		EnableHSTS:                false,
+		RedirectTTL:               30 * time.Minute,
+		SessionTTL:                24 * time.Hour,
+		LogLevel:                  "info",
+		CookieSigningKey:          []byte("test-signing-key-32-bytes-long!"),
 		SecondaryCookieSigningKey: []byte{},
-		RedirectSkew:             5 * time.Minute,
-		Auth0Domain:              "test.auth0.com",
-		Auth0ClientID:            "test-client-id",
-		Auth0ClientSecret:        "test-client-secret",
-		Auth0RedirectPath:        "/callback",
-		IntercomAppID:            "test-app-id",
-		TxnTTL:                   10 * time.Minute,
-		TxnSkew:                  1 * time.Minute,
+		RedirectSkew:              5 * time.Minute,
+		Auth0Domain:               "test.auth0.com",
+		Auth0ClientID:             "test-client-id",
+		Auth0ClientSecret:         "test-client-secret",
+		Auth0RedirectPath:         "/callback",
+		IntercomAppID:             "test-app-id",
+		TxnTTL:                    10 * time.Minute,
+		TxnSkew:                   1 * time.Minute,
 	}
 
 	// Nonce to use in both transaction cookie and ID token
@@ -101,7 +101,7 @@ func TestCallbackRendererSuccess(t *testing.T) {
 		t,
 		state,
 		codeVerifier,
-		testNonce,  // Use same nonce as in ID token
+		testNonce, // Use same nonce as in ID token
 		time.Now().Add(10*time.Minute),
 		cfg.CookieSigningKey,
 		cfg.CookieDomain,
@@ -186,24 +186,24 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 
 	// Create test config
 	cfg := config.Config{
-		Env:                      "test",
-		AppHostname:              "localhost",
-		Port:                     "8080",
-		CookieDomain:             ".localhost",
-		EnableHSTS:               false,
-		RedirectTTL:              30 * time.Minute,
-		SessionTTL:               24 * time.Hour,
-		LogLevel:                 "info",
-		CookieSigningKey:         []byte("test-signing-key-32-bytes-long!"),
+		Env:                       "test",
+		AppHostname:               "localhost",
+		Port:                      "8080",
+		CookieDomain:              ".localhost",
+		EnableHSTS:                false,
+		RedirectTTL:               30 * time.Minute,
+		SessionTTL:                24 * time.Hour,
+		LogLevel:                  "info",
+		CookieSigningKey:          []byte("test-signing-key-32-bytes-long!"),
 		SecondaryCookieSigningKey: []byte{},
-		RedirectSkew:             5 * time.Minute,
-		Auth0Domain:              "test.auth0.com",
-		Auth0ClientID:            "test-client-id",
-		Auth0ClientSecret:        "test-client-secret",
-		Auth0RedirectPath:        "/callback",
-		IntercomAppID:            "test-app-id",
-		TxnTTL:                   10 * time.Minute,
-		TxnSkew:                  1 * time.Minute,
+		RedirectSkew:              5 * time.Minute,
+		Auth0Domain:               "test.auth0.com",
+		Auth0ClientID:             "test-client-id",
+		Auth0ClientSecret:         "test-client-secret",
+		Auth0RedirectPath:         "/callback",
+		IntercomAppID:             "test-app-id",
+		TxnTTL:                    10 * time.Minute,
+		TxnSkew:                   1 * time.Minute,
 	}
 
 	// Nonce to use in both transaction cookie and ID token
@@ -260,7 +260,7 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 		t,
 		state,
 		codeVerifier,
-		fallbackNonce,  // Use same nonce as in ID token
+		fallbackNonce, // Use same nonce as in ID token
 		time.Now().Add(10*time.Minute),
 		cfg.CookieSigningKey,
 		cfg.CookieDomain,
@@ -307,24 +307,24 @@ func TestCallbackRendererWithSpecialCharacters(t *testing.T) {
 	defer cleanup()
 
 	cfg := config.Config{
-		Env:                      "test",
-		AppHostname:              "localhost",
-		Port:                     "8080",
-		CookieDomain:             ".localhost",
-		EnableHSTS:               false,
-		RedirectTTL:              30 * time.Minute,
-		SessionTTL:               24 * time.Hour,
-		LogLevel:                 "info",
-		CookieSigningKey:         []byte("test-signing-key-32-bytes-long!"),
+		Env:                       "test",
+		AppHostname:               "localhost",
+		Port:                      "8080",
+		CookieDomain:              ".localhost",
+		EnableHSTS:                false,
+		RedirectTTL:               30 * time.Minute,
+		SessionTTL:                24 * time.Hour,
+		LogLevel:                  "info",
+		CookieSigningKey:          []byte("test-signing-key-32-bytes-long!"),
 		SecondaryCookieSigningKey: []byte{},
-		RedirectSkew:             5 * time.Minute,
-		Auth0Domain:              "test.auth0.com",
-		Auth0ClientID:            "test-client-id",
-		Auth0ClientSecret:        "test-client-secret",
-		Auth0RedirectPath:        "/callback",
-		IntercomAppID:            "test-app-id",
-		TxnTTL:                   10 * time.Minute,
-		TxnSkew:                  1 * time.Minute,
+		RedirectSkew:              5 * time.Minute,
+		Auth0Domain:               "test.auth0.com",
+		Auth0ClientID:             "test-client-id",
+		Auth0ClientSecret:         "test-client-secret",
+		Auth0RedirectPath:         "/callback",
+		IntercomAppID:             "test-app-id",
+		TxnTTL:                    10 * time.Minute,
+		TxnSkew:                   1 * time.Minute,
 	}
 
 	// Nonce to use in both transaction cookie and ID token
@@ -382,7 +382,7 @@ func TestCallbackRendererWithSpecialCharacters(t *testing.T) {
 		t,
 		state,
 		codeVerifier,
-		specialNonce,  // Use same nonce as in ID token
+		specialNonce, // Use same nonce as in ID token
 		time.Now().Add(10*time.Minute),
 		cfg.CookieSigningKey,
 		cfg.CookieDomain,

@@ -12,7 +12,7 @@ import (
 
 // HealthStatus represents the overall health status of the service.
 type HealthStatus struct {
-	Status string            `json:"status"`         // "ok" or "degraded"
+	Status string            `json:"status"`           // "ok" or "degraded"
 	Checks map[string]string `json:"checks,omitempty"` // Only included in deep health checks
 }
 

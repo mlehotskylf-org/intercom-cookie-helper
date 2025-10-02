@@ -186,57 +186,61 @@ func TestLoginEndpoint(t *testing.T) {
 	router := NewRouter(cfg)
 
 	tests := []struct {
-		name           string
-		url            string
-		referer        string
-		expectedStatus int
-		expectedBody   map[string]string
-		expectRedirect bool
+		name                 string
+		url                  string
+		referer              string
+		expectedStatus       int
+		expectedBody         map[string]string
+		expectRedirect       bool
+		expectRedirectCookie bool // New field - expect redirect cookie to be set
 	}{
 		{
-			name:           "valid return URL with allowed referer",
-			url:            "/login?return_to=https://example.com/path?utm_source=test",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusFound, // Expecting redirect to Auth0
-			expectRedirect: true,
+			name:                 "valid return URL with allowed referer",
+			url:                  "/login?return_to=https://example.com/path?utm_source=test",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Expecting redirect to Auth0
+			expectRedirect:       true,
+			expectRedirectCookie: true,
 		},
 		{
-			name:           "valid return URL with empty referer",
-			url:            "/login?return_to=https://example.com/path",
-			referer:        "",
-			expectedStatus: http.StatusFound, // Expecting redirect to Auth0
-			expectRedirect: true,
+			name:                 "valid return URL with empty referer",
+			url:                  "/login?return_to=https://example.com/path",
+			referer:              "",
+			expectedStatus:       http.StatusFound, // Expecting redirect to Auth0
+			expectRedirect:       true,
+			expectRedirectCookie: true,
 		},
 		{
-			name:           "valid return URL with subdomain",
-			url:            "/login?return_to=https://sub.example.com/page",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusFound, // Expecting redirect to Auth0
-			expectRedirect: true,
+			name:                 "valid return URL with subdomain",
+			url:                  "/login?return_to=https://sub.example.com/page",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Expecting redirect to Auth0
+			expectRedirect:       true,
+			expectRedirectCookie: true,
 		},
 		{
-			name:           "missing return_to parameter",
-			url:            "/login",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_request"},
-			expectRedirect: false,
+			name:                 "referer used when return_to missing",
+			url:                  "/login",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer provides the return URL
+			expectRedirect:       true,
+			expectRedirectCookie: true,
 		},
 		{
-			name:           "disallowed host in return_to",
-			url:            "/login?return_to=https://malicious.com/attack",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_request"},
-			expectRedirect: false,
+			name:                 "referer takes priority over disallowed return_to",
+			url:                  "/login?return_to=https://malicious.com/attack",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer (localhost) is allowed, takes priority
+			expectRedirect:       true,
+			expectRedirectCookie: true,
 		},
 		{
-			name:           "non-HTTPS return URL",
-			url:            "/login?return_to=http://example.com/path",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_request"},
-			expectRedirect: false,
+			name:                 "referer takes priority over non-HTTPS return_to",
+			url:                  "/login?return_to=http://example.com/path",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer (HTTPS) takes priority
+			expectRedirect:       true,
+			expectRedirectCookie: true,
 		},
 		{
 			name:           "disallowed referer",
@@ -255,66 +259,101 @@ func TestLoginEndpoint(t *testing.T) {
 			expectRedirect: false,
 		},
 		{
-			name:           "oversized URL (exceeds 3500 bytes)",
-			url:            "/login?return_to=https://example.com/" + strings.Repeat("a", 3600),
-			referer:        "https://localhost/",
+			name:                 "referer takes priority over oversized return_to",
+			url:                  "/login?return_to=https://example.com/" + strings.Repeat("a", 3600),
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer takes priority, not oversized
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "referer takes priority over malformed return_to",
+			url:                  "/login?return_to=https://[invalid",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer takes priority
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "referer takes priority over javascript return_to",
+			url:                  "/login?return_to=javascript:alert(1)",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer takes priority
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "referer takes priority over data URL return_to",
+			url:                  "/login?return_to=data:text/html,<script>alert(1)</script>",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer takes priority
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "URL with disallowed query params",
+			url:                  "/login?return_to=https://example.com/path?evil_param=value&utm_source=test",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Should succeed but strip evil_param
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "referer takes priority over return_to with port",
+			url:                  "/login?return_to=https://example.com:8080/path",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer takes priority
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "URL with username in authority",
+			url:                  "/login?return_to=https://user@example.com/path",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Sanitizer strips username and accepts URL
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		{
+			name:                 "referer used when return_to is empty string",
+			url:                  "/login?return_to=",
+			referer:              "https://localhost/",
+			expectedStatus:       http.StatusFound, // Referer takes priority (empty string treated as missing)
+			expectRedirect:       true,
+			expectRedirectCookie: true,
+		},
+		// Tests with no referer - return_to fallback behavior
+		{
+			name:           "return_to fallback - disallowed host",
+			url:            "/login?return_to=https://malicious.com/attack",
+			referer:        "", // No referer, so return_to is used
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
-			name:           "malformed URL in return_to",
+			name:           "return_to fallback - malformed URL",
 			url:            "/login?return_to=https://[invalid",
-			referer:        "https://localhost/",
+			referer:        "",
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
-			name:           "javascript URL in return_to",
+			name:           "return_to fallback - javascript URL",
 			url:            "/login?return_to=javascript:alert(1)",
-			referer:        "https://localhost/",
+			referer:        "",
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   map[string]string{"error": "invalid_request"},
 			expectRedirect: false,
 		},
 		{
-			name:           "data URL in return_to",
-			url:            "/login?return_to=data:text/html,<script>alert(1)</script>",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_request"},
-			expectRedirect: false,
-		},
-		{
-			name:           "URL with disallowed query params",
-			url:            "/login?return_to=https://example.com/path?evil_param=value&utm_source=test",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusFound, // Should succeed but strip evil_param
-			expectRedirect: true,
-		},
-		{
-			name:           "URL with port number",
-			url:            "/login?return_to=https://example.com:8080/path",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusBadRequest, // Ports typically not allowed
-			expectedBody:   map[string]string{"error": "invalid_request"},
-			expectRedirect: false,
-		},
-		{
-			name:           "URL with username in authority",
-			url:            "/login?return_to=https://user@example.com/path",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusFound, // Sanitizer strips username and accepts URL
-			expectRedirect: true,
-		},
-		{
-			name:           "empty string return_to parameter",
-			url:            "/login?return_to=",
-			referer:        "https://localhost/",
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   map[string]string{"error": "invalid_request"},
-			expectRedirect: false,
+			name:                 "neither referer nor return_to",
+			url:                  "/login",
+			referer:              "",
+			expectedStatus:       http.StatusFound, // Should still redirect to Auth0, no cookie set
+			expectRedirect:       true,
+			expectRedirectCookie: false, // No return URL, so no redirect cookie
 		},
 	}
 
@@ -357,9 +396,16 @@ func TestLoginEndpoint(t *testing.T) {
 						hasTxnCookie = true
 					}
 				}
-				if !hasRedirectCookie {
+
+				// Only check for redirect cookie if we expect one
+				if tt.expectRedirectCookie && !hasRedirectCookie {
 					t.Error("expected ic_redirect cookie to be set")
 				}
+				if !tt.expectRedirectCookie && hasRedirectCookie {
+					t.Error("did not expect ic_redirect cookie to be set, but it was")
+				}
+
+				// Txn cookie should always be set for redirects
 				if !hasTxnCookie {
 					t.Error("expected ic_txn cookie to be set")
 				}
@@ -466,7 +512,7 @@ func TestDebugRedirectCookieEndpoint(t *testing.T) {
 				// Create a valid cookie using the same logic as the login endpoint
 				rec := httptest.NewRecorder()
 				loginReq, _ := http.NewRequest("GET", "/login?return_to=https://example.com/test", nil)
-				loginReq.Header.Set("Referer", "https://localhost/")
+				// No referer set, so return_to param will be used
 				router.ServeHTTP(rec, loginReq)
 
 				// Extract the cookie from login response
@@ -596,22 +642,22 @@ func TestWithIdentifyCSP(t *testing.T) {
 func TestCallbackRouteHasSecurityHeaders(t *testing.T) {
 	// Verify /callback route has Intercom security headers
 	cfg := config.Config{
-		Env:                "test",
-		AppHostname:        "localhost",
-		Port:               "8080",
-		CookieDomain:       ".localhost",
-		EnableHSTS:         false,
-		RedirectTTL:        30 * time.Minute,
-		SessionTTL:         24 * time.Hour,
-		LogLevel:           "info",
-		CookieSigningKey:   []byte("test-signing-key-32-bytes-long!"),
-		Auth0Domain:        "test.auth0.com",
-		Auth0ClientID:      "test-client-id",
-		Auth0ClientSecret:  "test-client-secret",
-		Auth0RedirectPath:  "/callback",
-		IntercomAppID:      "test-app-id",
-		TxnTTL:             10 * time.Minute,
-		TxnSkew:            1 * time.Minute,
+		Env:               "test",
+		AppHostname:       "localhost",
+		Port:              "8080",
+		CookieDomain:      ".localhost",
+		EnableHSTS:        false,
+		RedirectTTL:       30 * time.Minute,
+		SessionTTL:        24 * time.Hour,
+		LogLevel:          "info",
+		CookieSigningKey:  []byte("test-signing-key-32-bytes-long!"),
+		Auth0Domain:       "test.auth0.com",
+		Auth0ClientID:     "test-client-id",
+		Auth0ClientSecret: "test-client-secret",
+		Auth0RedirectPath: "/callback",
+		IntercomAppID:     "test-app-id",
+		TxnTTL:            10 * time.Minute,
+		TxnSkew:           1 * time.Minute,
 	}
 	router := NewRouter(cfg)
 
@@ -726,7 +772,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 
 			// Check that all security headers are present
 			headers := map[string]string{
-				"Referrer-Policy":       "strict-origin-when-cross-origin",
+				"Referrer-Policy":        "strict-origin-when-cross-origin",
 				"X-Content-Type-Options": "nosniff",
 				"Permissions-Policy":     "geolocation=(), microphone=(), camera=()",
 			}

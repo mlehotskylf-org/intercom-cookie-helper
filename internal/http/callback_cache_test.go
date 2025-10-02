@@ -25,21 +25,21 @@ func TestCallbackCacheHeaders(t *testing.T) {
 
 	// Create test config
 	cfg := config.Config{
-		Auth0Domain:           strings.TrimPrefix(mockAuth0.URL, "http://"),
-		Auth0ClientID:         "test-client-id",
-		Auth0ClientSecret:     "test-client-secret",
-		CookieSigningKey:      []byte("test-signing-key-32-bytes-long!!"),
-		CookieDomain:          "localhost",
-		AppHostname:           "localhost",
-		Port:                  "8080",
-		Env:                   "dev",
-		AllowedReturnHosts:    []string{"example.com"},
-		AllowedQueryParams:    []string{"utm_campaign"},
-		IntercomAppID:         "test-app-id",
-		TxnTTL:                10 * time.Minute,
-		TxnSkew:               5 * time.Minute,
-		RedirectTTL:           30 * time.Minute,
-		RedirectSkew:          1 * time.Minute,
+		Auth0Domain:        strings.TrimPrefix(mockAuth0.URL, "http://"),
+		Auth0ClientID:      "test-client-id",
+		Auth0ClientSecret:  "test-client-secret",
+		CookieSigningKey:   []byte("test-signing-key-32-bytes-long!!"),
+		CookieDomain:       "localhost",
+		AppHostname:        "localhost",
+		Port:               "8080",
+		Env:                "dev",
+		AllowedReturnHosts: []string{"example.com"},
+		AllowedQueryParams: []string{"utm_campaign"},
+		IntercomAppID:      "test-app-id",
+		TxnTTL:             10 * time.Minute,
+		TxnSkew:            5 * time.Minute,
+		RedirectTTL:        30 * time.Minute,
+		RedirectSkew:       1 * time.Minute,
 	}
 
 	// Create valid transaction cookie using helper

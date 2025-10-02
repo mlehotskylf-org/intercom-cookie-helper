@@ -20,7 +20,7 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			Iat:    time.Now().Unix(),
 			Exp:    time.Now().Add(10 * time.Minute).Unix(),
 		})
-		if err != nil{
+		if err != nil {
 			t.Fatalf("failed to mint mock JWT: %v", err)
 		}
 		return jwt

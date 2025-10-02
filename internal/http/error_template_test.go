@@ -159,9 +159,9 @@ func TestErrorTemplateNoXSS(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		data           ErrView
-		expectEscaped  []string // These should be escaped (HTML entities)
+		name          string
+		data          ErrView
+		expectEscaped []string // These should be escaped (HTML entities)
 	}{
 		{
 			name: "script tag in title",

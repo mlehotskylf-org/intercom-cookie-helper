@@ -71,18 +71,19 @@ func TestErrorContentNegotiation_Login(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create request with invalid return_to (missing parameter)
-			req := httptest.NewRequest("GET", "/login", nil)
+			// Create request with invalid return_to (disallowed host, no referer fallback)
+			req := httptest.NewRequest("GET", "/login?return_to=https://evil.com/bad", nil)
 			if tt.acceptHeader != "" {
 				req.Header.Set("Accept", tt.acceptHeader)
 			}
+			// No referer, so return_to param will be used and rejected
 
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
 			// Should return 400 Bad Request
 			if rr.Code != http.StatusBadRequest {
-				t.Errorf("Expected status 400, got %d", rr.Code)
+				t.Errorf("Expected status 400, got %d: %s", rr.Code, rr.Body.String())
 			}
 
 			// Check Content-Type
