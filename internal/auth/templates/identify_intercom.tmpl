@@ -81,11 +81,27 @@ body {
         // Boot Intercom with user data
         window.Intercom('boot', window.intercomSettings);
 
-        // Wait 1 second for Intercom to initialize, then redirect
+        // Wait 1 second for Intercom to initialize, then notify opener and redirect
         setTimeout(function() {
-          console.log('Redirecting to:', "{{.ReturnTo}}");
-          var u = "{{.ReturnTo}}";
-          if (u) { location.replace(u); }
+          // Notify opener window that login succeeded
+          if (window.opener && !window.opener.closed) {
+            console.log('Notifying opener window of login success');
+            window.opener.postMessage(
+              { type: 'intercom_login_success' },
+              '{{.ReturnTo}}'
+            );
+
+            // Auto-close this tab after 2 seconds
+            setTimeout(function() {
+              console.log('Closing login tab');
+              window.close();
+            }, 2000);
+          } else {
+            // No opener window, redirect normally
+            console.log('Redirecting to:', "{{.ReturnTo}}");
+            var u = "{{.ReturnTo}}";
+            if (u) { location.replace(u); }
+          }
         }, 1000);
       } else {
         retryCount++;
@@ -94,8 +110,17 @@ body {
           setTimeout(waitForIntercomAndRedirect, 100);
         } else {
           console.log('Max retries reached, redirecting without Intercom');
-          var u = "{{.ReturnTo}}";
-          if (u) { location.replace(u); }
+          // Notify opener if present, otherwise redirect
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(
+              { type: 'intercom_login_success' },
+              '{{.ReturnTo}}'
+            );
+            setTimeout(function() { window.close(); }, 2000);
+          } else {
+            var u = "{{.ReturnTo}}";
+            if (u) { location.replace(u); }
+          }
         }
       }
     }
