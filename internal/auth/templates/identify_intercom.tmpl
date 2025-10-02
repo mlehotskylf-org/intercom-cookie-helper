@@ -86,9 +86,21 @@ body {
           // Notify opener window that login succeeded
           if (window.opener && !window.opener.closed) {
             console.log('Notifying opener window of login success');
+            // Extract origin from returnTo URL for postMessage
+            var returnTo = "{{.ReturnTo}}";
+            var targetOrigin = '*'; // Use wildcard for simplicity
+            if (returnTo) {
+              try {
+                var url = new URL(returnTo);
+                targetOrigin = url.origin;
+              } catch (e) {
+                console.log('Could not parse return URL, using wildcard origin');
+              }
+            }
+
             window.opener.postMessage(
               { type: 'intercom_login_success' },
-              '{{.ReturnTo}}'
+              targetOrigin
             );
 
             // Auto-close this tab after 2 seconds
@@ -112,9 +124,17 @@ body {
           console.log('Max retries reached, redirecting without Intercom');
           // Notify opener if present, otherwise redirect
           if (window.opener && !window.opener.closed) {
+            var returnTo = "{{.ReturnTo}}";
+            var targetOrigin = '*';
+            if (returnTo) {
+              try {
+                var url = new URL(returnTo);
+                targetOrigin = url.origin;
+              } catch (e) {}
+            }
             window.opener.postMessage(
               { type: 'intercom_login_success' },
-              '{{.ReturnTo}}'
+              targetOrigin
             );
             setTimeout(function() { window.close(); }, 2000);
           } else {
