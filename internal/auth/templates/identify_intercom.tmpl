@@ -85,6 +85,10 @@ body {
         setTimeout(function() {
           var returnTo = "{{.ReturnTo}}";
 
+          // Debug: Check window.opener
+          console.log('DEBUG: window.opener exists?', !!window.opener);
+          console.log('DEBUG: window.opener value:', window.opener);
+
           // Always try to notify opener (if it exists)
           try {
             if (window.opener && !window.opener.closed) {
@@ -94,6 +98,7 @@ body {
                 try {
                   var url = new URL(returnTo);
                   targetOrigin = url.origin;
+                  console.log('DEBUG: Sending postMessage to origin:', targetOrigin);
                 } catch (e) {
                   console.log('Could not parse return URL, using wildcard origin');
                 }
@@ -103,6 +108,9 @@ body {
                 { type: 'intercom_login_success' },
                 targetOrigin
               );
+              console.log('DEBUG: postMessage sent');
+            } else {
+              console.log('DEBUG: No opener or opener is closed');
             }
           } catch (e) {
             console.log('Could not access window.opener:', e.message);
