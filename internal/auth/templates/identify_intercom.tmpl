@@ -110,17 +110,20 @@ body {
 
           // Try to close window (works if opened via target="_blank" or window.open)
           // If close fails, redirect to return URL
+          // TEMP: Added 10 second delay for debugging
           setTimeout(function() {
-            console.log('Attempting to close window');
-            window.close();
-
-            // If window.close() didn't work (still here after 500ms), redirect
+            console.log('Attempting to close window in 10 seconds (debug delay)');
             setTimeout(function() {
-              console.log('Window not closed, redirecting to:', returnTo);
-              if (returnTo) {
-                location.replace(returnTo);
-              }
-            }, 500);
+              window.close();
+
+              // If window.close() didn't work (still here after 500ms), redirect
+              setTimeout(function() {
+                console.log('Window not closed, redirecting to:', returnTo);
+                if (returnTo) {
+                  location.replace(returnTo);
+                }
+              }, 500);
+            }, 10000);
           }, 1500);
         }, 1000);
       } else {
@@ -150,13 +153,17 @@ body {
           } catch (e) {}
 
           // Try to close, otherwise redirect
+          // TEMP: Added 10 second delay for debugging
           setTimeout(function() {
-            window.close();
+            console.log('Attempting to close window in 10 seconds (debug delay - max retries)');
             setTimeout(function() {
-              if (returnTo) {
-                location.replace(returnTo);
-              }
-            }, 500);
+              window.close();
+              setTimeout(function() {
+                if (returnTo) {
+                  location.replace(returnTo);
+                }
+              }, 500);
+            }, 10000);
           }, 1500);
         }
       }
