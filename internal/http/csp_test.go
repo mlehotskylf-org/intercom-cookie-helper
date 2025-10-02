@@ -29,7 +29,7 @@ func TestWithIdentifyCSP_AppliesCSP(t *testing.T) {
 	requiredDirectives := map[string]string{
 		"default-src":     "'self'",
 		"script-src":      "'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com",
-		"connect-src":     "'self' https://*.intercom.io https://api-iam.intercom.io",
+		"connect-src":     "'self' https://*.intercom.io wss://*.intercom.io https://api-iam.intercom.io",
 		"img-src":         "'self' data: https://*.intercomcdn.com",
 		"style-src":       "'self' 'unsafe-inline'",
 		"frame-ancestors": "'none'",
@@ -68,7 +68,7 @@ func TestWithIdentifyCSP_UnsafeInlineRequired(t *testing.T) {
 	}
 }
 
-func TestWithIdentifyCSP_NoWebsockets(t *testing.T) {
+func TestWithIdentifyCSP_IncludesWebsockets(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -82,9 +82,9 @@ func TestWithIdentifyCSP_NoWebsockets(t *testing.T) {
 
 	csp := rec.Header().Get("Content-Security-Policy")
 
-	// Verify websockets are not included (not needed for this implementation)
-	if strings.Contains(csp, "wss://") {
-		t.Error("CSP should not include websocket URLs (not required)")
+	// Verify websockets are included (required by Intercom for real-time messaging)
+	if !strings.Contains(csp, "wss://*.intercom.io") {
+		t.Error("CSP must include websocket URLs (required by Intercom)")
 	}
 }
 

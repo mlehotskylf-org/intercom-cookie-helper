@@ -22,7 +22,7 @@ func WithIdentifyCSP(next http.Handler) http.Handler {
 		// frame-ancestors 'none' - Prevent this page from being framed (clickjacking protection)
 		csp := "default-src 'self'; " +
 			"script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com; " +
-			"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io; " +
+			"connect-src 'self' https://*.intercom.io wss://*.intercom.io https://api-iam.intercom.io; " +
 			"img-src 'self' data: https://*.intercomcdn.com; " +
 			"style-src 'self' 'unsafe-inline'; " +
 			"frame-ancestors 'none'"

@@ -101,7 +101,6 @@ ENV=dev APP_HOSTNAME=localhost PORT=8080 make start
 | `APP_HOSTNAME` | Your application hostname | `auth.example.com` |
 | `COOKIE_DOMAIN` | Cookie domain (with leading dot) | `.example.com` |
 | `INTERCOM_APP_ID` | Intercom application ID | `ic_abc123` |
-| `INTERCOM_JWT_SECRET` | Intercom JWT secret (dev only) | `your-secret` |
 | `AUTH0_DOMAIN` | Auth0 tenant domain | `tenant.auth0.com` |
 | `AUTH0_CLIENT_ID` | Auth0 application client ID | `client-id` |
 | `AUTH0_CLIENT_SECRET` | Auth0 client secret (dev only) | `client-secret` |

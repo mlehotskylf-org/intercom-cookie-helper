@@ -570,7 +570,7 @@ func TestWithIdentifyCSP(t *testing.T) {
 	requiredDirectives := []string{
 		"default-src 'self'",
 		"script-src 'self' 'unsafe-inline' https://widget.intercom.io https://js.intercomcdn.com",
-		"connect-src 'self' https://*.intercom.io https://api-iam.intercom.io",
+		"connect-src 'self' https://*.intercom.io wss://*.intercom.io https://api-iam.intercom.io",
 		"img-src 'self' data: https://*.intercomcdn.com",
 		"style-src 'self' 'unsafe-inline'",
 		"frame-ancestors 'none'",
@@ -587,9 +587,9 @@ func TestWithIdentifyCSP(t *testing.T) {
 		t.Error("CSP must contain 'unsafe-inline' in script-src (required by template)")
 	}
 
-	// Verify that wss://*.intercom.io is NOT included (not needed)
-	if strings.Contains(csp, "wss://") {
-		t.Error("CSP should not contain websocket URLs in connect-src")
+	// Verify that wss://*.intercom.io IS included (required for real-time messaging)
+	if !strings.Contains(csp, "wss://*.intercom.io") {
+		t.Error("CSP must contain websocket URLs in connect-src (required by Intercom)")
 	}
 }
 
