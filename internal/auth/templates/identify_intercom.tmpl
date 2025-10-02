@@ -81,39 +81,47 @@ body {
         // Boot Intercom with user data
         window.Intercom('boot', window.intercomSettings);
 
-        // Wait 1 second for Intercom to initialize, then notify opener and redirect
+        // Wait 1 second for Intercom to initialize, then handle redirect/close
         setTimeout(function() {
-          // Notify opener window that login succeeded
-          if (window.opener && !window.opener.closed) {
-            console.log('Notifying opener window of login success');
-            // Extract origin from returnTo URL for postMessage
-            var returnTo = "{{.ReturnTo}}";
-            var targetOrigin = '*'; // Use wildcard for simplicity
-            if (returnTo) {
-              try {
-                var url = new URL(returnTo);
-                targetOrigin = url.origin;
-              } catch (e) {
-                console.log('Could not parse return URL, using wildcard origin');
+          var returnTo = "{{.ReturnTo}}";
+
+          // Always try to notify opener (if it exists)
+          try {
+            if (window.opener && !window.opener.closed) {
+              console.log('Notifying opener window of login success');
+              var targetOrigin = '*';
+              if (returnTo) {
+                try {
+                  var url = new URL(returnTo);
+                  targetOrigin = url.origin;
+                } catch (e) {
+                  console.log('Could not parse return URL, using wildcard origin');
+                }
               }
+
+              window.opener.postMessage(
+                { type: 'intercom_login_success' },
+                targetOrigin
+              );
             }
-
-            window.opener.postMessage(
-              { type: 'intercom_login_success' },
-              targetOrigin
-            );
-
-            // Auto-close this tab after 2 seconds
-            setTimeout(function() {
-              console.log('Closing login tab');
-              window.close();
-            }, 2000);
-          } else {
-            // No opener window, redirect normally
-            console.log('Redirecting to:', "{{.ReturnTo}}");
-            var u = "{{.ReturnTo}}";
-            if (u) { location.replace(u); }
+          } catch (e) {
+            console.log('Could not access window.opener:', e.message);
           }
+
+          // Try to close window (works if opened via target="_blank" or window.open)
+          // If close fails, redirect to return URL
+          setTimeout(function() {
+            console.log('Attempting to close window');
+            window.close();
+
+            // If window.close() didn't work (still here after 500ms), redirect
+            setTimeout(function() {
+              console.log('Window not closed, redirecting to:', returnTo);
+              if (returnTo) {
+                location.replace(returnTo);
+              }
+            }, 500);
+          }, 1500);
         }, 1000);
       } else {
         retryCount++;
@@ -122,25 +130,34 @@ body {
           setTimeout(waitForIntercomAndRedirect, 100);
         } else {
           console.log('Max retries reached, redirecting without Intercom');
-          // Notify opener if present, otherwise redirect
-          if (window.opener && !window.opener.closed) {
-            var returnTo = "{{.ReturnTo}}";
-            var targetOrigin = '*';
-            if (returnTo) {
-              try {
-                var url = new URL(returnTo);
-                targetOrigin = url.origin;
-              } catch (e) {}
+          var returnTo = "{{.ReturnTo}}";
+
+          // Try to notify opener
+          try {
+            if (window.opener && !window.opener.closed) {
+              var targetOrigin = '*';
+              if (returnTo) {
+                try {
+                  var url = new URL(returnTo);
+                  targetOrigin = url.origin;
+                } catch (e) {}
+              }
+              window.opener.postMessage(
+                { type: 'intercom_login_success' },
+                targetOrigin
+              );
             }
-            window.opener.postMessage(
-              { type: 'intercom_login_success' },
-              targetOrigin
-            );
-            setTimeout(function() { window.close(); }, 2000);
-          } else {
-            var u = "{{.ReturnTo}}";
-            if (u) { location.replace(u); }
-          }
+          } catch (e) {}
+
+          // Try to close, otherwise redirect
+          setTimeout(function() {
+            window.close();
+            setTimeout(function() {
+              if (returnTo) {
+                location.replace(returnTo);
+              }
+            }, 500);
+          }, 1500);
         }
       }
     }
