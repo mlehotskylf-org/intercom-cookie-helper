@@ -116,17 +116,26 @@ body {
             console.log('Could not access window.opener:', e.message);
           }
 
-          // TEMP: Testing referer forwarding after HTTPS switch
-          // Window close is disabled - will redirect to test if referer header works
-          // TEMP: Added 10 second delay for debugging
+          // Notify other tabs via localStorage (cross-tab communication)
+          try {
+            localStorage.setItem('intercom_login_event', Date.now());
+            console.log('Sent login event to other tabs via localStorage');
+          } catch (e) {
+            console.log('Could not set localStorage:', e.message);
+          }
+
+          // Wait briefly for Intercom to initialize, then close window or redirect
           setTimeout(function() {
-            console.log('Redirecting to referer in 10 seconds (debug delay - testing HTTPS referer)');
+            // Try to close the window first (if opened via target="_blank")
+            window.close();
+
+            // If window.close() didn't work (user gesture required or not a popup),
+            // redirect back to the return URL after a short delay
             setTimeout(function() {
-              console.log('Redirecting to:', returnTo);
               if (returnTo) {
                 location.replace(returnTo);
               }
-            }, 10000);
+            }, 500);
           }, 1500);
         }, 1000);
       } else {
@@ -155,16 +164,19 @@ body {
             }
           } catch (e) {}
 
-          // TEMP: Testing referer forwarding after HTTPS switch (max retries path)
-          // Window close is disabled - will redirect to test if referer header works
-          // TEMP: Added 10 second delay for debugging
+          // Notify other tabs via localStorage even if Intercom failed to load
+          try {
+            localStorage.setItem('intercom_login_event', Date.now());
+          } catch (e) {}
+
+          // Intercom failed to load, try to close window or redirect anyway
           setTimeout(function() {
-            console.log('Redirecting to referer in 10 seconds (debug delay - max retries, testing HTTPS referer)');
+            window.close();
             setTimeout(function() {
               if (returnTo) {
                 location.replace(returnTo);
               }
-            }, 10000);
+            }, 500);
           }, 1500);
         }
       }
