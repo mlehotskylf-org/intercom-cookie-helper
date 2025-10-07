@@ -85,57 +85,12 @@ body {
         setTimeout(function() {
           var returnTo = "{{.ReturnTo}}";
 
-          // Debug: Check window.opener
-          console.log('DEBUG: window.opener exists?', !!window.opener);
-          console.log('DEBUG: window.opener value:', window.opener);
-
-          // Always try to notify opener (if it exists)
-          try {
-            if (window.opener && !window.opener.closed) {
-              console.log('Notifying opener window of login success');
-              var targetOrigin = '*';
-              if (returnTo) {
-                try {
-                  var url = new URL(returnTo);
-                  targetOrigin = url.origin;
-                  console.log('DEBUG: Sending postMessage to origin:', targetOrigin);
-                } catch (e) {
-                  console.log('Could not parse return URL, using wildcard origin');
-                }
-              }
-
-              window.opener.postMessage(
-                { type: 'intercom_login_success' },
-                targetOrigin
-              );
-              console.log('DEBUG: postMessage sent');
-            } else {
-              console.log('DEBUG: No opener or opener is closed');
-            }
-          } catch (e) {
-            console.log('Could not access window.opener:', e.message);
-          }
-
-          // Notify other tabs via localStorage (cross-tab communication)
-          try {
-            localStorage.setItem('intercom_login_event', Date.now());
-            console.log('Sent login event to other tabs via localStorage');
-          } catch (e) {
-            console.log('Could not set localStorage:', e.message);
-          }
-
-          // Wait briefly for Intercom to initialize, then close window or redirect
+          // Wait briefly for Intercom to initialize, then redirect
           setTimeout(function() {
-            // Try to close the window first (if opened via target="_blank")
-            window.close();
-
-            // If window.close() didn't work (user gesture required or not a popup),
-            // redirect back to the return URL after a short delay
-            setTimeout(function() {
-              if (returnTo) {
-                location.replace(returnTo);
-              }
-            }, 500);
+            console.log('Redirecting to:', returnTo);
+            if (returnTo) {
+              location.replace(returnTo);
+            }
           }, 1500);
         }, 1000);
       } else {
@@ -164,19 +119,13 @@ body {
             }
           } catch (e) {}
 
-          // Notify other tabs via localStorage even if Intercom failed to load
-          try {
-            localStorage.setItem('intercom_login_event', Date.now());
-          } catch (e) {}
-
-          // Intercom failed to load, try to close window or redirect anyway
+          // Intercom failed to load, redirect anyway
+          console.log('Max retries reached, redirecting without Intercom');
+          var returnTo = "{{.ReturnTo}}";
           setTimeout(function() {
-            window.close();
-            setTimeout(function() {
-              if (returnTo) {
-                location.replace(returnTo);
-              }
-            }, 500);
+            if (returnTo) {
+              location.replace(returnTo);
+            }
           }, 1500);
         }
       }
