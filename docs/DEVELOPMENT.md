@@ -12,8 +12,8 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-org/intercom-cookie-helper.git
-   cd intercom-cookie-helper
+   git clone https://github.com/linuxfoundation/identity-cookie-helper.git
+   cd identity-cookie-helper
    ```
 
 2. Configure environment:

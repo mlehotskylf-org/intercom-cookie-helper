@@ -74,6 +74,11 @@ For `/login` endpoint:
 - Invalid referrer returns 400 with JSON error
 - Structured logging: `event=ref_check ok=true/false reason=...`
 
+**Priority for return URLs**:
+- `return_to` query parameter takes priority over Referer header
+- Explicit parameters provide better security than implicit headers
+- Backward compatible: falls back to Referer if `return_to` is missing
+
 ## Error Handling
 
 ### Centralized Error Responses
