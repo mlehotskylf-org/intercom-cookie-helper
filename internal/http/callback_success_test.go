@@ -205,7 +205,7 @@ func createTestIDToken(t *testing.T, nonce string) string {
 	// This is a simplified version for testing - real JWT would need proper signing
 	header := makeBase64URL(`{"alg":"RS256","typ":"JWT"}`)
 	expTime := time.Now().Add(time.Hour).Unix()
-	payloadJSON := fmt.Sprintf(`{"nonce":"%s","sub":"auth0|user123","aud":"test-client-id","exp":%d,"http://lfx.dev/claims/intercom":"%s"}`, nonce, expTime, mockIntercomJWT)
+	payloadJSON := fmt.Sprintf(`{"nonce":"%s","aud":"test-client-id","exp":%d,"http://lfx.dev/claims/intercom":"%s"}`, nonce, expTime, mockIntercomJWT)
 	payload := makeBase64URL(payloadJSON)
 	signature := makeBase64URL("test-signature")
 

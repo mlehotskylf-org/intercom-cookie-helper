@@ -58,8 +58,7 @@ body {
 <script>
   window.intercomSettings = {
     app_id: "{{.AppID}}",
-    intercom_user_jwt: "{{.JWT}}",
-    user_id: "{{.UserID}}"{{if .Email}},
+    intercom_user_jwt: "{{.JWT}}"{{if .Email}},
     email: "{{.Email}}"{{end}}{{if .Name}},
     name: "{{.Name}}"{{end}}
   };

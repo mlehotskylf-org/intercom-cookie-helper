@@ -108,7 +108,6 @@ func createMockIDToken(nonce string) string {
 	// Create a simple JWT-like structure (header.payload.signature)
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{
-		"sub":"auth0|123456",
 		"email":"test@example.com",
 		"name":"Test User",
 		"iss":"https://test.auth0.com/",

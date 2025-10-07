@@ -17,7 +17,6 @@ type jwtPayload struct {
 
 // idTokenClaims represents the ID token payload with user claims
 type idTokenClaims struct {
-	Sub         string `json:"sub"`                                      // Subject - unique user identifier
 	Email       string `json:"email,omitempty"`                          // User's email address
 	Name        string `json:"name,omitempty"`                           // User's display name
 	Nonce       string `json:"nonce,omitempty"`                          // Nonce for replay protection
@@ -71,7 +70,7 @@ func ExtractNonceFromIDToken(idToken string) (string, error) {
 // Security note: We rely on the authorization code flow for authentication, not JWT signatures.
 //
 // The function expects a standard JWT format: header.payload.signature
-// Returns a UserInfo struct with sub, email, and name claims.
+// Returns a UserInfo struct with email, name, and Intercom JWT claims.
 func ParseUserInfoFromIDToken(idToken string) (*UserInfo, error) {
 	// Check if token is empty
 	if idToken == "" {
@@ -102,14 +101,10 @@ func ParseUserInfoFromIDToken(idToken string) (*UserInfo, error) {
 		return nil, fmt.Errorf("failed to parse id token payload: %w", err)
 	}
 
-	// Validate that we have a subject identifier
-	if claims.Sub == "" {
-		return nil, fmt.Errorf("id token missing required sub claim")
-	}
-
 	// Return UserInfo struct with Intercom JWT
+	// Note: We don't extract 'sub' as it's not safe to use as username.
+	// The authoritative identity is in the IntercomJWT from Auth0 Action.
 	return &UserInfo{
-		Sub:         claims.Sub,
 		Email:       claims.Email,
 		Name:        claims.Name,
 		IntercomJWT: claims.IntercomJWT,

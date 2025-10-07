@@ -183,72 +183,47 @@ func TestParseUserInfoFromIDToken(t *testing.T) {
 		{
 			name: "valid token with all user claims",
 			idToken: createTestToken(t, map[string]interface{}{
-				"sub":   "auth0|123456",
 				"email": "user@example.com",
 				"name":  "John Doe",
 			}),
 			expectedUserInfo: &UserInfo{
-				Sub:   "auth0|123456",
 				Email: "user@example.com",
 				Name:  "John Doe",
 			},
 			expectedError: "",
 		},
 		{
-			name: "valid token with only required sub claim",
+			name: "valid token with email only",
 			idToken: createTestToken(t, map[string]interface{}{
-				"sub": "google-oauth2|987654321",
-			}),
-			expectedUserInfo: &UserInfo{
-				Sub:   "google-oauth2|987654321",
-				Email: "",
-				Name:  "",
-			},
-			expectedError: "",
-		},
-		{
-			name: "valid token with sub and email only",
-			idToken: createTestToken(t, map[string]interface{}{
-				"sub":   "auth0|user123",
 				"email": "test@test.com",
 			}),
 			expectedUserInfo: &UserInfo{
-				Sub:   "auth0|user123",
 				Email: "test@test.com",
 				Name:  "",
 			},
 			expectedError: "",
 		},
 		{
-			name: "valid token with sub and name only",
+			name: "valid token with name only",
 			idToken: createTestToken(t, map[string]interface{}{
-				"sub":  "auth0|user456",
 				"name": "Jane Smith",
 			}),
 			expectedUserInfo: &UserInfo{
-				Sub:   "auth0|user456",
 				Email: "",
 				Name:  "Jane Smith",
 			},
 			expectedError: "",
 		},
 		{
-			name: "token missing required sub claim",
+			name: "valid token with no user claims",
 			idToken: createTestToken(t, map[string]interface{}{
-				"email": "user@example.com",
-				"name":  "John Doe",
+				"aud": "client-id",
 			}),
-			expectedUserInfo: nil,
-			expectedError:    "id token missing required sub claim",
-		},
-		{
-			name: "token with empty sub claim",
-			idToken: createTestToken(t, map[string]interface{}{
-				"sub":   "",
-				"email": "user@example.com",
-			}),
-			expectedUserInfo: nil,
-			expectedError:    "id token missing required sub claim",
+			expectedUserInfo: &UserInfo{
+				Email: "",
+				Name:  "",
+			},
+			expectedError: "",
 		},
 		{
 			name:             "empty token",
@@ -301,9 +276,6 @@ func TestParseUserInfoFromIDToken(t *testing.T) {
 				return
 			}
 
-			if userInfo.Sub != tt.expectedUserInfo.Sub {
-				t.Errorf("expected Sub %q, got %q", tt.expectedUserInfo.Sub, userInfo.Sub)
-			}
 			if userInfo.Email != tt.expectedUserInfo.Email {
 				t.Errorf("expected Email %q, got %q", tt.expectedUserInfo.Email, userInfo.Email)
 			}
@@ -318,7 +290,6 @@ func TestParseUserInfoFromIDToken(t *testing.T) {
 func TestParseUserInfoFromIDToken_RealWorldToken(t *testing.T) {
 	claims := map[string]interface{}{
 		"iss":            "https://auth0.example.com/",
-		"sub":            "auth0|507f1f77bcf86cd799439011",
 		"aud":            "my-client-id",
 		"iat":            1516239022,
 		"exp":            1516239322,
@@ -339,9 +310,6 @@ func TestParseUserInfoFromIDToken_RealWorldToken(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if userInfo.Sub != "auth0|507f1f77bcf86cd799439011" {
-		t.Errorf("expected Sub %q, got %q", "auth0|507f1f77bcf86cd799439011", userInfo.Sub)
-	}
 	if userInfo.Email != "realuser@example.com" {
 		t.Errorf("expected Email %q, got %q", "realuser@example.com", userInfo.Email)
 	}

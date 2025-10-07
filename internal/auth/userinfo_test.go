@@ -21,7 +21,6 @@ func TestFetchUserInfo(t *testing.T) {
 		{
 			name: "successful userinfo fetch",
 			serverResponse: UserInfo{
-				Sub:   "auth0|123456789",
 				Email: "user@example.com",
 				Name:  "John Doe",
 			},
@@ -43,7 +42,7 @@ func TestFetchUserInfo(t *testing.T) {
 		{
 			name: "successful userinfo with minimal fields",
 			serverResponse: UserInfo{
-				Sub: "google-oauth2|987654321",
+				Email: "minimal@example.com",
 			},
 			serverStatus: http.StatusOK,
 			accessToken:  "minimal-token",
@@ -82,16 +81,6 @@ func TestFetchUserInfo(t *testing.T) {
 			serverStatus:  http.StatusInternalServerError,
 			accessToken:   "test-token",
 			expectedError: "userinfo request failed with status 500",
-		},
-		{
-			name: "missing sub claim in response",
-			serverResponse: map[string]interface{}{
-				"email": "user@example.com",
-				"name":  "John Doe",
-			},
-			serverStatus:  http.StatusOK,
-			accessToken:   "test-token",
-			expectedError: "invalid userinfo response: missing sub claim",
 		},
 		{
 			name:           "invalid json response",
@@ -155,10 +144,6 @@ func TestFetchUserInfo(t *testing.T) {
 			if userInfo == nil {
 				t.Error("expected non-nil userinfo")
 				return
-			}
-
-			if userInfo.Sub == "" {
-				t.Error("expected non-empty sub claim")
 			}
 		})
 	}

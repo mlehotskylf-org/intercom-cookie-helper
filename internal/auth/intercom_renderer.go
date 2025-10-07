@@ -32,7 +32,6 @@ type IntercomRenderer struct {
 type intercomTemplateData struct {
 	AppID    string
 	JWT      string
-	UserID   string
 	Email    string
 	Name     string
 	ReturnTo string
@@ -45,9 +44,6 @@ func (r *IntercomRenderer) Render(w http.ResponseWriter, p IdentifyPayload) erro
 	if r.AppID == "" {
 		return fmt.Errorf("intercom app ID is required")
 	}
-	if p.Subject == "" {
-		return fmt.Errorf("subject is required")
-	}
 	if p.ReturnTo == "" {
 		return fmt.Errorf("return URL is required")
 	}
@@ -56,10 +52,10 @@ func (r *IntercomRenderer) Render(w http.ResponseWriter, p IdentifyPayload) erro
 	}
 
 	// Prepare template data - use pre-generated JWT from Auth0
+	// Note: user_id is not needed in template since JWT contains authoritative identity
 	data := intercomTemplateData{
 		AppID:    r.AppID,
 		JWT:      p.IntercomJWT, // Use JWT from Auth0 Action
-		UserID:   p.Subject,
 		Email:    p.Email,
 		Name:     p.Name,
 		ReturnTo: p.ReturnTo,

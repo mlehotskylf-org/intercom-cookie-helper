@@ -35,7 +35,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 
 		payload := IdentifyPayload{
 			ReturnTo:    "https://app.example.com/complete-login",
-			Subject:     "auth0|12345",
 			Email:       "user@example.com",
 			Name:        "Test User",
 			IntercomJWT: mockJWT, // JWT from Auth0 Action
@@ -64,11 +63,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		// Check for JWT in intercomSettings
 		if !strings.Contains(body, `intercom_user_jwt: "`) {
 			t.Error("expected intercom_user_jwt in intercomSettings")
-		}
-
-		// Check for user_id in intercomSettings
-		if !strings.Contains(body, `user_id: "auth0|12345"`) {
-			t.Error("expected user_id in intercomSettings")
 		}
 
 		// Check for email in intercomSettings
@@ -105,9 +99,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 			t.Fatalf("failed to verify JWT from HTML: %v", err)
 		}
 
-		if claims.UserID != payload.Subject {
-			t.Errorf("expected UserID %s, got %s", payload.Subject, claims.UserID)
-		}
 		if claims.Email != payload.Email {
 			t.Errorf("expected Email %s, got %s", payload.Email, claims.Email)
 		}
@@ -125,7 +116,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 
 		payload := IdentifyPayload{
 			ReturnTo:    "https://app.example.com/",
-			Subject:     "user123",
 			IntercomJWT: mockJWT,
 			// No Email or Name
 		}
@@ -137,11 +127,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 
 		body := w.Body.String()
-
-		// Check for user_id in intercomSettings (should be present even without email/name)
-		if !strings.Contains(body, `user_id: "user123"`) {
-			t.Error("expected user_id in intercomSettings")
-		}
 
 		// Email and name should not be present in payload fields
 		if strings.Contains(body, `email:`) {
@@ -156,13 +141,9 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		jwtEnd := strings.Index(body[jwtStart:], `"`)
 		jwt := body[jwtStart : jwtStart+jwtEnd]
 
-		claims, err := VerifyIntercomJWT(validSecret, jwt)
+		_, err = VerifyIntercomJWT(validSecret, jwt)
 		if err != nil {
 			t.Fatalf("failed to verify JWT: %v", err)
-		}
-
-		if claims.UserID != payload.Subject {
-			t.Errorf("expected UserID %s, got %s", payload.Subject, claims.UserID)
 		}
 	})
 
@@ -175,7 +156,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 
 		payload := IdentifyPayload{
 			ReturnTo:    "https://app.example.com/",
-			Subject:     "user123",
 			IntercomJWT: mockJWT,
 		}
 
@@ -196,7 +176,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 
 		payload := IdentifyPayload{
 			ReturnTo:    "https://app.example.com/",
-			Subject:     "user123",
 			IntercomJWT: "", // Missing - should error
 		}
 
@@ -210,29 +189,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		}
 	})
 
-	t.Run("missing subject", func(t *testing.T) {
-		mockJWT := generateMockJWT("user123", "", "")
-
-		renderer := &IntercomRenderer{
-			AppID: validAppID,
-		}
-
-		payload := IdentifyPayload{
-			ReturnTo:    "https://app.example.com/",
-			Subject:     "", // Missing
-			IntercomJWT: mockJWT,
-		}
-
-		w := httptest.NewRecorder()
-		err := renderer.Render(w, payload)
-		if err == nil {
-			t.Fatal("expected error for missing subject")
-		}
-		if !strings.Contains(err.Error(), "subject is required") {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
-
 	t.Run("missing return URL", func(t *testing.T) {
 		mockJWT := generateMockJWT("user123", "", "")
 
@@ -242,7 +198,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 
 		payload := IdentifyPayload{
 			ReturnTo:    "", // Missing
-			Subject:     "user123",
 			IntercomJWT: mockJWT,
 		}
 
@@ -266,7 +221,6 @@ func TestIntercomRenderer_Render(t *testing.T) {
 		// Test with potentially malicious return URL
 		payload := IdentifyPayload{
 			ReturnTo:    `https://example.com/"></script><script>alert('xss')</script>`,
-			Subject:     "user123",
 			Name:        `<script>alert('name')</script>`,
 			IntercomJWT: mockJWT,
 		}

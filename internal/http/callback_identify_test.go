@@ -61,7 +61,6 @@ func TestCallbackRendererSuccess(t *testing.T) {
 			expTime := time.Now().Add(time.Hour).Unix()
 			payloadJSON := fmt.Sprintf(`{
 				"nonce": "%s",
-				"sub": "auth0|renderer-test-123",
 				"email": "renderer@example.com",
 				"name": "Renderer Test User",
 				"aud": "test-client-id",
@@ -137,12 +136,6 @@ func TestCallbackRendererSuccess(t *testing.T) {
 
 	// Assert that the HTML contains the expected values from our test data
 	// These should be embedded in the Intercom settings or the page
-
-	// Check for user_id (Subject)
-	expectedSubject := "auth0|renderer-test-123"
-	if !strings.Contains(body, expectedSubject) {
-		t.Errorf("expected HTML to contain Subject '%s'", expectedSubject)
-	}
 
 	// Check for email
 	expectedEmail := "renderer@example.com"
@@ -224,7 +217,6 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 			expTime := time.Now().Add(time.Hour).Unix()
 			payloadJSON := fmt.Sprintf(`{
 				"nonce": "%s",
-				"sub": "auth0|fallback-user",
 				"email": "fallback@example.com",
 				"name": "Fallback User",
 				"aud": "test-client-id",
@@ -282,11 +274,6 @@ func TestCallbackRendererMissingRedirectCookie(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-
-	// Assert user info is present
-	if !strings.Contains(body, "auth0|fallback-user") {
-		t.Error("expected HTML to contain fallback user Subject")
-	}
 
 	// Assert fallback URL is used (may be URL-encoded)
 	if !strings.Contains(body, "localhost") {
@@ -346,7 +333,6 @@ func TestCallbackRendererWithSpecialCharacters(t *testing.T) {
 			// Name with apostrophe and quotes to test escaping
 			payloadJSON := fmt.Sprintf(`{
 				"nonce": "%s",
-				"sub": "auth0|special-123",
 				"email": "test+alias@example.com",
 				"name": "O'Brien \"The\" User",
 				"aud": "test-client-id",
