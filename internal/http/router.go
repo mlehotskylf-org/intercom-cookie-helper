@@ -137,19 +137,19 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 			return
 		}
 
-		// Step 1: Determine return URL (priority: Referer header > return_to query param > none)
-		// This allows sites to simply link to /login (browser sends referer automatically)
-		// while supporting query param fallback for edge cases (privacy extensions, testing, etc.)
+		// Step 1: Determine return URL (priority: return_to query param > Referer header > none)
+		// Explicit query param takes precedence over implicit browser referer header.
+		// This supports both direct links with ?return_to= and automatic referer-based redirects.
 		var returnTo string
 
-		// Try Referer header first (primary method per architecture)
-		if referer := r.Header.Get(HeaderReferer); referer != "" {
-			returnTo = referer
-		}
+		// Try return_to query param first (explicit, more reliable)
+		returnTo = r.URL.Query().Get("return_to")
 
-		// Fall back to return_to query param if no referer
+		// Fall back to Referer header if no query param
 		if returnTo == "" {
-			returnTo = r.URL.Query().Get("return_to")
+			if referer := r.Header.Get(HeaderReferer); referer != "" {
+				returnTo = referer
+			}
 		}
 
 		// If neither is present, we'll continue without a return URL

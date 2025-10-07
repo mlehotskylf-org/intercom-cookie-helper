@@ -20,7 +20,7 @@ import (
 // 5. Use that cookie in a request to /debug/redirect-cookie
 // 6. Assert the decoded URL matches expected value
 //
-// Priority: Referer header > return_to query param > none (no cookie)
+// Priority: return_to query param > Referer header > none (no cookie)
 func TestLoginToDebugIntegration(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -31,9 +31,9 @@ func TestLoginToDebugIntegration(t *testing.T) {
 		expectDebugOK bool
 	}{
 		{
-			name:          "referer takes priority over return_to param",
-			returnTo:      "https://example.com/wrong",
-			referer:       "https://example.com/correct?utm_source=test",
+			name:          "return_to param takes priority over referer",
+			returnTo:      "https://example.com/correct?utm_source=test",
+			referer:       "https://example.com/wrong",
 			expectedURL:   "https://example.com/correct?utm_source=test",
 			expectCookie:  true,
 			expectDebugOK: true,

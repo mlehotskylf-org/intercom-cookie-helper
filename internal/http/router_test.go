@@ -227,20 +227,20 @@ func TestLoginEndpoint(t *testing.T) {
 			expectRedirectCookie: true,
 		},
 		{
-			name:                 "referer takes priority over disallowed return_to",
-			url:                  "/login?return_to=https://malicious.com/attack",
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer (localhost) is allowed, takes priority
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - disallowed host fails",
+			url:            "/login?return_to=https://malicious.com/attack",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
-			name:                 "referer takes priority over non-HTTPS return_to",
-			url:                  "/login?return_to=http://example.com/path",
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer (HTTPS) takes priority
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - non-HTTPS fails",
+			url:            "/login?return_to=http://example.com/path",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
 			name:           "disallowed referer",
@@ -259,36 +259,36 @@ func TestLoginEndpoint(t *testing.T) {
 			expectRedirect: false,
 		},
 		{
-			name:                 "referer takes priority over oversized return_to",
-			url:                  "/login?return_to=https://example.com/" + strings.Repeat("a", 3600),
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer takes priority, not oversized
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - oversized fails",
+			url:            "/login?return_to=https://example.com/" + strings.Repeat("a", 3600),
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
-			name:                 "referer takes priority over malformed return_to",
-			url:                  "/login?return_to=https://[invalid",
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer takes priority
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - malformed fails",
+			url:            "/login?return_to=https://[invalid",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
-			name:                 "referer takes priority over javascript return_to",
-			url:                  "/login?return_to=javascript:alert(1)",
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer takes priority
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - javascript scheme fails",
+			url:            "/login?return_to=javascript:alert(1)",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
-			name:                 "referer takes priority over data URL return_to",
-			url:                  "/login?return_to=data:text/html,<script>alert(1)</script>",
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer takes priority
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - data URL fails",
+			url:            "/login?return_to=data:text/html,<script>alert(1)</script>",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
 			name:                 "URL with disallowed query params",
@@ -299,12 +299,12 @@ func TestLoginEndpoint(t *testing.T) {
 			expectRedirectCookie: true,
 		},
 		{
-			name:                 "referer takes priority over return_to with port",
-			url:                  "/login?return_to=https://example.com:8080/path",
-			referer:              "https://localhost/",
-			expectedStatus:       http.StatusFound, // Referer takes priority
-			expectRedirect:       true,
-			expectRedirectCookie: true,
+			name:           "return_to validated first - non-standard port fails",
+			url:            "/login?return_to=https://example.com:8080/path",
+			referer:        "https://localhost/",
+			expectedStatus: http.StatusBadRequest, // return_to has priority and validation fails
+			expectedBody:   map[string]string{"error": "invalid_request"},
+			expectRedirect: false,
 		},
 		{
 			name:                 "URL with username in authority",
