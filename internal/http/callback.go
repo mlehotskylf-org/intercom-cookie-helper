@@ -99,13 +99,13 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use HTTP for local development, HTTPS for production
+	// Use HTTP only for localhost, HTTPS for everything else (including deployed dev)
 	var redirectURI string
-	if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
-		// For local development, use HTTP and include the port
+	if config.IsLocalhost(cfg.AppHostname) {
+		// For localhost, use HTTP and include the port
 		redirectURI = "http://" + cfg.AppHostname + ":" + cfg.Port + cfg.Auth0RedirectPath
 	} else {
-		// For production, use HTTPS without port
+		// For deployed environments, use HTTPS without port
 		redirectURI = "https://" + cfg.AppHostname + cfg.Auth0RedirectPath
 	}
 

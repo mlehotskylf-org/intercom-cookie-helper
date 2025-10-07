@@ -115,21 +115,16 @@ body {
             console.log('Could not access window.opener:', e.message);
           }
 
-          // Try to close window (works if opened via target="_blank" or window.open)
-          // If close fails, redirect to return URL
+          // TEMP: Testing referer forwarding after HTTPS switch
+          // Window close is disabled - will redirect to test if referer header works
           // TEMP: Added 10 second delay for debugging
           setTimeout(function() {
-            console.log('Attempting to close window in 10 seconds (debug delay)');
+            console.log('Redirecting to referer in 10 seconds (debug delay - testing HTTPS referer)');
             setTimeout(function() {
-              window.close();
-
-              // If window.close() didn't work (still here after 500ms), redirect
-              setTimeout(function() {
-                console.log('Window not closed, redirecting to:', returnTo);
-                if (returnTo) {
-                  location.replace(returnTo);
-                }
-              }, 500);
+              console.log('Redirecting to:', returnTo);
+              if (returnTo) {
+                location.replace(returnTo);
+              }
             }, 10000);
           }, 1500);
         }, 1000);
@@ -159,17 +154,15 @@ body {
             }
           } catch (e) {}
 
-          // Try to close, otherwise redirect
+          // TEMP: Testing referer forwarding after HTTPS switch (max retries path)
+          // Window close is disabled - will redirect to test if referer header works
           // TEMP: Added 10 second delay for debugging
           setTimeout(function() {
-            console.log('Attempting to close window in 10 seconds (debug delay - max retries)');
+            console.log('Redirecting to referer in 10 seconds (debug delay - max retries, testing HTTPS referer)');
             setTimeout(function() {
-              window.close();
-              setTimeout(function() {
-                if (returnTo) {
-                  location.replace(returnTo);
-                }
-              }, 500);
+              if (returnTo) {
+                location.replace(returnTo);
+              }
             }, 10000);
           }, 1500);
         }

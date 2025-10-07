@@ -211,9 +211,9 @@ func loginHandler(sanitizer *security.Sanitizer) http.HandlerFunc {
 		}
 
 		// Step 4: Build redirect URI
-		// Use HTTP for local development, HTTPS for production
+		// Use HTTP only for localhost, HTTPS for everything else (including deployed dev)
 		var redirectURI string
-		if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
+		if config.IsLocalhost(cfg.AppHostname) {
 			redirectURI = fmt.Sprintf("http://%s:%s%s", cfg.AppHostname, cfg.Port, cfg.Auth0RedirectPath)
 		} else {
 			redirectURI = fmt.Sprintf("https://%s%s", cfg.AppHostname, cfg.Auth0RedirectPath)

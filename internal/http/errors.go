@@ -124,8 +124,8 @@ type ErrView struct {
 // safeDefaultURL returns a safe default URL based on the app hostname.
 // Used as a fallback when no valid return URL is available.
 func safeDefaultURL(cfg config.Config) string {
-	// Use HTTP for localhost in dev mode, HTTPS for everything else
-	if cfg.Env == "dev" && cfg.AppHostname == "localhost" {
+	// Use HTTP only for localhost, HTTPS for everything else (including deployed dev)
+	if config.IsLocalhost(cfg.AppHostname) {
 		return "http://" + cfg.AppHostname + ":" + cfg.Port + "/"
 	}
 	return "https://" + cfg.AppHostname + "/"
